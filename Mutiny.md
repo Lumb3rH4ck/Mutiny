@@ -1,13 +1,15 @@
 ---
 tags: [infrastructure, mutiny, torrent, download, scanning, clamav, yara, tui, virtualization, malwarebazaar, docker]
 ---
-![[Pasted image 20260911121732.png]]
-![[Pasted image 20260911121808.png]]
-![[Pasted image 20260911121826.png]]
+![Mutiny TUI — Loading](assets/mutiny-tui-loading.png)
 
-![[Pasted image 20260911121847.png]]
+![Mutiny TUI — Main view, VPN up](assets/mutiny-tui-main.png)
 
-![[Pasted image 20260911121911.png]]
+![Mutiny TUI — Previous Downloads](assets/mutiny-tui-previous.png)
+
+![Mutiny TUI — Scan report](assets/mutiny-tui-scan.png)
+
+![Mutiny TUI — Move file](assets/mutiny-tui-move.png)
 
 
 # Mutiny Torrent Client & Scanner
@@ -36,20 +38,6 @@ Local BitTorrent client with a TUI + web UI, gated behind the VPN, with dual-eng
 | **Restart-safe** | State store prevents re-downloading delivered data |
 
 ---
-
-## Screenshots
-
-### TUI — Downloads
-
-![Mutiny TUI — Downloads](assets/mutiny-tui-downloads.png)
-
-### TUI — Previous Downloads
-
-![Mutiny TUI — Previous Downloads](assets/mutiny-tui-previous.png)
-
-### Web UI (`:3030`)
-
-![Mutiny Web UI](assets/mutiny-web.png)
 
 ---
 
