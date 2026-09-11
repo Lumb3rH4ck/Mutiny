@@ -41,15 +41,15 @@ Local BitTorrent client with a TUI + web UI, gated behind the VPN, with dual-eng
 
 ### TUI — Downloads
 
-![[Infrastructure/assets/mutiny-tui-downloads.png]]
+![Mutiny TUI — Downloads](assets/mutiny-tui-downloads.png)
 
 ### TUI — Previous Downloads
 
-![[Infrastructure/assets/mutiny-tui-previous.png]]
+![Mutiny TUI — Previous Downloads](assets/mutiny-tui-previous.png)
 
 ### Web UI (`:3030`)
 
-![[Infrastructure/assets/mutiny-web.png]]
+![Mutiny Web UI](assets/mutiny-web.png)
 
 ---
 
