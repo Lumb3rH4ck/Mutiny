@@ -3049,6 +3049,25 @@ func (m model) renderFileBox(t torrent.TorrentInfo) string {
 	}
 	inner := maxW - 4
 	files := t.Files
+	// When a file subset was selected, show only those files — unselected
+	// files were pruned from disk at delivery and are not part of what the
+	// user downloaded, so listing them (often at a misleading 100%) just adds
+	// noise. SelectedFiles is nil/empty when everything was downloaded.
+	if len(t.SelectedFiles) > 0 {
+		want := make(map[string]struct{}, len(t.SelectedFiles))
+		for _, p := range t.SelectedFiles {
+			want[p] = struct{}{}
+		}
+		filtered := make([]torrent.FileInfo, 0, len(t.SelectedFiles))
+		for _, f := range files {
+			if _, ok := want[f.Path]; ok {
+				filtered = append(filtered, f)
+			}
+		}
+		if len(filtered) > 0 {
+			files = filtered
+		}
+	}
 
 	lines := []string{
 		m.theme.Title.Render(" FILES " + strings.Repeat("─", inner-8)),
