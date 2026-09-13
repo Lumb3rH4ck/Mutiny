@@ -1235,11 +1235,15 @@ func main() {
 			// not already checked by on-the-fly. anacrolix File.Path() is
 			// already relative to the download dir and includes the torrent's
 			// own directory for multi-file torrents, so no extra name prefix.
-			if err := tm.MoveFiles(t, cfg.DownloadDir, cfg.ScanDir, torrent.MoveDestStage); err != nil {
+		if err := tm.MoveFiles(t, cfg.DownloadDir, cfg.ScanDir, torrent.MoveDestStage); err != nil {
 				log.Printf("stage completed torrent %s: %v", id, err)
 			}
-			total := len(t.Files())
-			for i, f := range t.Files() {
+			// Only scan the files the user actually selected. Unselected
+			// files were pruned from disk by PruneUnselected, so they have
+			// no staged copy and scanning them would record stale results.
+			scanFiles := tm.ScanFiles(t)
+			total := len(scanFiles)
+			for i, f := range scanFiles {
 				staged := filepath.Join(cfg.ScanDir, f.Path())
 				// A clean/threat verdict is final. Files left unscanned (incl.
 				// a raced on-the-fly "no such file" after staging) get retried
@@ -1495,31 +1499,35 @@ func main() {
 
 			// scan_on_the_fly: check each file as it finishes downloading, not
 			// only when the whole torrent completes.
-			if cfg.ScanOnTheFly && e.Type == "torrent.progress" {
-				t, ok := tm.GetTorrent(e.Torrent.ID)
-				if !ok || t.Info() == nil {
+		if cfg.ScanOnTheFly && e.Type == "torrent.progress" {
+			t, ok := tm.GetTorrent(e.Torrent.ID)
+			if !ok || t.Info() == nil {
+				continue
+			}
+			// Only scan selected files on-the-fly. Unselected files share
+			// no chosen pieces, so they never finish — but guard anyway so
+			// a stray completed unselected file is not scanned and recorded.
+			scanFiles := tm.ScanFiles(t)
+			totalFiles := len(scanFiles)
+			for i, f := range scanFiles {
+				if tm.IsFileScanned(e.Torrent.ID, f.Path()) {
 					continue
 				}
-				totalFiles := len(t.Files())
-				for i, f := range t.Files() {
-					if tm.IsFileScanned(e.Torrent.ID, f.Path()) {
+				if f.Length() > 0 && f.BytesCompleted() >= f.Length() {
+					full := filepath.Join(cfg.DownloadDir, f.Path())
+					// We can race the completion handler, which stages the
+					// torrent into the scanning dir as soon as it finishes.
+					// If the download-root copy is already gone, scanning
+					// it here would only record a bogus "no such file"
+					// verdict and dedup the REAL staged copy out of the
+					// completion pass — stranding the file unscanned.
+					if _, err := os.Lstat(full); os.IsNotExist(err) {
 						continue
 					}
-					if f.Length() > 0 && f.BytesCompleted() >= f.Length() {
-						full := filepath.Join(cfg.DownloadDir, f.Path())
-						// We can race the completion handler, which stages the
-						// torrent into the scanning dir as soon as it finishes.
-						// If the download-root copy is already gone, scanning
-						// it here would only record a bogus "no such file"
-						// verdict and dedup the REAL staged copy out of the
-						// completion pass — stranding the file unscanned.
-						if _, err := os.Lstat(full); os.IsNotExist(err) {
-							continue
-						}
-						scanPath(e.Torrent.ID, f.Path(), full, i+1, totalFiles)
-					}
+					scanPath(e.Torrent.ID, f.Path(), full, i+1, totalFiles)
 				}
 			}
+		}
 		}
 	}()
 

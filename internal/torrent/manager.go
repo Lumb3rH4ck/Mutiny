@@ -688,6 +688,37 @@ func (m *Manager) IsComplete(id string) bool {
 	return m.complete(mt.t)
 }
 
+// scanFiles returns the torrent's files that should be scanned: the chosen
+// subset when a selection is active, otherwise every file. Unselected files
+// are excluded so the scanner never touches (and never records stale results
+// for) files the user did not ask for — they may be absent on disk because
+// PruneUnselected drops them at delivery.
+func (m *Manager) ScanFiles(t *torrent.Torrent) []*torrent.File {
+	id := t.InfoHash().HexString()
+	m.mu.RLock()
+	src, haveSrc := m.sources[id]
+	applied := m.applied[id]
+	m.mu.RUnlock()
+	all := t.Files()
+	if !haveSrc || len(src.files) == 0 || !applied {
+		return all
+	}
+	want := make(map[string]struct{}, len(src.files))
+	for _, p := range src.files {
+		want[p] = struct{}{}
+	}
+	out := make([]*torrent.File, 0, len(src.files))
+	for _, f := range all {
+		if _, ok := want[f.DisplayPath()]; ok {
+			out = append(out, f)
+		}
+	}
+	if len(out) == 0 {
+		return all
+	}
+	return out
+}
+
 func (m *Manager) watch(ctx context.Context, id string, t *torrent.Torrent) {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
