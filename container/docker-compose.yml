@@ -1,0 +1,47 @@
+services:
+  scan:
+    build:
+      context: .
+      network: host          # rootless-docker bridge cannot reach apt mirrors at build time
+    image: mutiny-scan:latest
+    container_name: mutiny-scan
+    restart: unless-stopped
+    # No runtime network is needed (clamd scans local sockets/binds only), so
+    # the container stays on the default bridge with no host-netns sharing.
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    # Egress (freshclam signature downloads) leaves through the VPN tunnel
+    # (surfshark MTU 1280); a 1500 mtu bridge drops the larger segments
+    # (PMTU blackhole) and HTTPS downloads time out. 1280 fits every tunnel.
+    networks:
+      - default
+    environment:
+      - DOWNLOAD_DIR=${DOWNLOAD_DIR:-/home/lumb3r/Downloads/Mutiny}
+      - RULES_DIR=${RULES_DIR:-/home/lumb3r/.local/share/mutiny/rules}
+    volumes:
+      - type: bind
+        source: ${DOWNLOAD_DIR:-/home/lumb3r/Downloads/Mutiny}
+        target: ${DOWNLOAD_DIR:-/home/lumb3r/Downloads/Mutiny}
+        read_only: true
+      - type: bind
+        source: ${RULES_DIR:-/home/lumb3r/.local/share/mutiny/rules}
+        target: ${RULES_DIR:-/home/lumb3r/.local/share/mutiny/rules}
+        read_only: true
+      # Writable so the auto-updater's `freshclam` can swap signatures in
+      # place. The container still drops all capabilities and forbids new
+      # privileges, and each scan reads the DB fresh — so mid-scan updates
+      # don't disrupt anything.
+      - type: bind
+        source: /var/lib/clamav
+        target: /var/lib/clamav
+
+networks:
+  default:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: "1280"

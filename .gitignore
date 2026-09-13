@@ -1,0 +1,19 @@
+# Built binary
+mutiny
+tmp/
+
+# Runtime data (per-machine download/scan state)
+.torrent.db
+*.db
+
+# Skylos static-analysis output
+.skylos/
+
+# Live local config (user-specific paths + secrets)
+config.yaml
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
