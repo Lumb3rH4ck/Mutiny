@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mutiny</title>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link rel="icon" type="image/png" href="/img/icon-48.png">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body x-data="app()" x-init="init()" @keydown="onKey($event)" :data-theme="webTheme" x-cloak>
+    <div class="screen">
+
+        <div class="header">
+            <div class="menu">
+                <div class="menu-item" :class="page === 'downloads' ? 'active' : 'inactive'" @click="page='downloads'">[Downloads]</div>
+                <div class="menu-item" :class="page === 'history' ? 'active' : 'inactive'" @click="page='history'">[Previous Downloads]</div>
+                <div class="menu-item" @click="startInput()">[Add Download]</div>
+                <div class="menu-item" @click="toggleSettings()">[Settings]</div>
+            </div>
+            <div class="title">⚓ Mutiny ⚓</div>
+            <div class="statuses">
+                <div class="vpn-line" :class="vpnClass()" x-text="vpnText()"></div>
+                <div class="engine-line" :class="engines.clamav ? 'ok' : 'danger'" x-text="'ClamAV: ● ' + (engines.clamav ? 'UP' : 'DOWN')"></div>
+                <div class="engine-line" :class="engines.yara ? 'ok' : 'danger'" x-text="'YARA: ● ' + (engines.yara ? 'UP' : 'DOWN')"></div>
+                <div class="engine-line" :class="'ok'" x-show="engines.sandbox" x-text="'Sandbox: ● UP'"></div>
+            </div>
+        </div>
+
+        <input type="file" accept=".torrent" style="display:none" x-ref="fileInput" @change="onFilePick($event)">
+
+        <div class="panicline" x-show="panic">⚠ PANIC MODE — all torrents stopped</div>
+        <div class="errline" x-show="err" x-text="'✗ ' + err"></div>
+        <div class="sep" x-show="(page==='downloads' && torrents.length>0) || (page==='history' && history.length>0)"></div>
+
+        <div class="page" x-show="page==='downloads'">
+            <template x-for="(t, i) in torrents" :key="t.id">
+                <div class="torrent-block" :class="{ selected: i === selected }" @click="clickCard(i)"
+                     :id="'torrow' + i">
+                    <div class="card" x-html="cardHtml(t, i)"></div>
+                    <div class="c-actions">
+                        <button class="c-act" title="Resume" @click.stop="resumeTorrent(t)">▶</button>
+                        <button class="c-act" title="Pause" @click.stop="pauseTorrent(t)">⏸</button>
+                        <button class="c-act del" title="Delete" @click.stop="deleteTorrent(t)">🗑</button>
+                        <button class="c-act" title="Open containing folder" @click.stop="torrentFolder(t)">📁</button>
+                    </div>
+                    <div class="filebox" x-show="filesOpen && i === selected"
+                         :id="'fbox' + i" @click.stop>
+                        <div class="filebox-title" x-text="' FILES '"></div>
+                        <div class="filebox-body">
+                            <div class="fempty" x-show="!(t.files || []).length" x-text="'   no file list yet'"></div>
+                            <template x-for="(f, fi) in t.files" :key="f.path">
+                                <div class="filebox-row" :class="{ sel: fi === filesCursor }">
+                                    <span class="fmark" x-text="fileMark(f)"></span>
+                                    <span class="fpath" x-text="f.path"></span>
+                                    <span class="fstat" x-text="fmtBytes(f.size) + ' ' + (f.progress || 0).toFixed(0) + '%'"></span>
+                                    <span class="fscan" :class="scanCls(f.scan_result)" x-text="f.scan_result || 'unscanned'"></span>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="filebox-footer" x-show="(t.files || []).length > 0"
+                             x-text="(t.files || []).length + ' files · ↑↓/j/k scroll · enter/esc close'"></div>
+                    </div>
+                </div>
+            </template>
+            <div class="empty" x-show="torrents.length===0">No Torrents — Press "A" to Add</div>
+        </div>
+
+        <div class="page history-page" x-show="page==='history'">
+            <div x-show="historyFocus !== 'report'">
+                <div class="history-grid">
+                    <div class="history-list">
+                        <template x-for="(e, i) in history" :key="e.id">
+<div class="history-row" :class="{ selected: i === historySel }" @click="clickHistory(i)"
+                         :id="'histrow' + i">
+                                <div x-html="historyRow(e, i)"></div>
+                            </div>
+                        </template>
+                        <div class="empty" x-show="history.length===0">No previous downloads yet — completed torrents land here</div>
+                    </div>
+                    <div class="report-box" x-show="history.length>0">
+                        <div class="report-title" x-text="reportTitle()"></div>
+                        <div x-html="reportHtml()"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="report-pane" x-show="historyFocus==='report' && history.length>0">
+                <div x-html="reportHtml()"></div>
+                <div class="scrollinfo" x-text="scrollInfoHtml()"></div>
+            </div>
+        </div>
+
+        <div class="footer" x-text="footerText()"></div>
+    </div>
+
+    <div class="overlay" x-show="settingsOpen" @click.self="settingsOpen=false">
+        <div class="popup">
+            <div class="popup-title" x-text="' SETTINGS '"></div>
+            <template x-for="sec in sections" :key="sec.name">
+                <div>
+                    <div class="sec-title" x-text="sec.name"></div>
+                    <template x-for="(s, si) in sec.settings" :key="s.key">
+                        <div class="setting-row" :class="{ sel: settingsNdx(sec, s) === settingsCursor }"
+                             @click="cycleSetting(s.key)">
+                            <span class="cur" x-text="settingsNdx(sec, s) === settingsCursor ? '▶ ' : '  '"></span>
+                            <span class="setting-label" x-text="s.label"></span>
+                            <span class="setting-val" x-text="s.value + (s.restart ? ' (restart)' : '')"></span>
+                        </div>
+                    </template>
+                </div>
+            </template>
+            <div class="popup-footer">
+                <span>enter/space cycle</span>
+                <span>j/k or ↑/↓ navigate</span>
+                <span>esc close</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="overlay" x-show="picking" @click.self="closePicker()">
+        <div class="popup">
+            <div class="popup-title" x-text="' SELECT FILES '"></div>
+            <template x-for="(f, path) in pending" :key="path">
+                <div class="picker-row" :class="{ sel: pickSel(path) }" @click="pickClick(path)">
+                    <span x-text="pending[path] ? '[x] ' : '[ ] '"></span>
+                    <span x-text="path"></span>
+                </div>
+            </template>
+            <div class="popup-footer">
+                <span @click="takeAll()">l all</span>
+                <span @click="takeNone()">u none</span>
+                <span @click="downloadAll()">download all</span>
+                <span @click="confirmSelection()">download selected</span>
+                <span @click="closePicker()">cancel</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="overlay" x-show="addOpen" @click.self="closeAdd()">
+        <div class="popup addpop">
+            <div class="popup-title" x-text="' ADD DOWNLOAD '"></div>
+            <div class="add-lbl" x-text="'  magnet or .torrent link: '"></div>
+            <div class="add-input-row" x-show="!addReferrer">
+                <input class="prompt" x-ref="addinput" x-model="addValue"
+                       x-effect="addOpen && !addReferrer && $refs.addinput && $refs.addinput.focus()"
+                       @keydown.enter.prevent="addSubmit()" @keydown.esc="closeAdd()">
+            </div>
+            <div class="add-input-row" x-show="addReferrer">
+                <span class="lbl" x-text="'   ' + pendingURL"></span>
+            </div>
+            <div class="add-input-row" x-show="addReferrer">
+                <span class="lbl" x-text="'  referrer (optional): '"></span>
+                <input class="prompt" x-ref="refinput" x-model="referrerInput"
+                       x-effect="addOpen && addReferrer && $refs.refinput && $refs.refinput.focus()"
+                       @keydown.enter.prevent="addSubmit()" @keydown.esc="addReferrer=false">
+            </div>
+            <div class="add-browse" :class="{ picked: !!addFile }" @click="pickTorrentFile()">
+                <span x-text="addFile ? '📁 ' + addFile.name : '🖿 Browse local files…'"></span>
+            </div>
+            <div class="add-footer">
+                <button class="add-btn" @click="closeAdd()">Cancel</button>
+                <button class="add-btn add-ok" @click="addSubmit()">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="overlay panic" x-show="panic">
+        <div class="panic-msg">
+            <div class="panic-h">⚠ PANIC MODE ACTIVATED</div>
+            <p>All torrents stopped. VPN connection lost.</p>
+            <p x-show="!vpn.connected">Interface <span x-text="vpn.interface"></span> is down.</p>
+            <button x-show="vpn.connected" @click="clearPanic()">Clear</button>
+        </div>
+    </div>
+
+    <button class="panic-btn" x-show="!panic" @click="togglePanic()">PANIC</button>
+    <script src="/app.js"></script>
+</body>
+</html>
