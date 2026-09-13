@@ -22,6 +22,10 @@ Local BitTorrent client with a TUI + web UI, gated behind the VPN, with dual-eng
 
 | Feature | Description |
 |---------|-------------|
+| **Web UI mirrors the TUI** | Full browser parity: Downloads + Previous Downloads pages, live progress/scan cards, settings popup, file picker, panic, and the same five themes — same keybindings in the browser (`web/app.js`) |
+| **Web API** | `/api/settings` (+`/cycle`) & `/api/history` (+`rescan|delete|open`) & `/api/engines` expose the same data the TUI shows; share the TUI's setting/cycle + re-scan code |
+| **LAN/Tailscale web** | `web_lan` / `web_tailscale` (default on) serve the UI + API on the private LAN and tailnet in addition to loopback; flags `-no-web-lan` / `-no-web-tailscale` |
+| **Cookie API auth** | With `api_token` set, the web origin gets an HttpOnly `mutiny_token` cookie so browser state-changing calls work (WebSockets/browser can't send Bearer headers) |
 | **Double engine scanning** | ClamAV + YARA on every file |
 | **Containerized engines** | ClamAV + YARA run inside the `mutiny-scan` Docker sandbox (read-only rootfs, read-only binds, no caps) |
 | **Hash reputation** | SHA-256 checked against MalwareBazaar after a clean verdict (hash only, no content sent) |
@@ -35,6 +39,7 @@ Local BitTorrent client with a TUI + web UI, gated behind the VPN, with dual-eng
 | **API token auth** | Optional bearer token for state-changing `/api` calls |
 | **Built-in auto-update** | `freshclam` + YARA rules (git pull or pinned URL) on a timer, in-app |
 | **Modes** | TUI (in-terminal), server + web UI (`:3030`), REST API |
+| **Per-file download selection** | Choose which files inside a torrent to download before anything starts (TUI picker, web picker, API); choice persisted across restarts |
 | **Restart-safe** | State store prevents re-downloading delivered data |
 
 ---
@@ -91,22 +96,75 @@ cd ~/Work/Mutiny && ./mutiny -mode server
 
 | Key | Action |
 |-----|--------|
-| `a` | Add torrent: paste a `magnet:` link or a `.torrent` path, Enter to submit (`tab` opens a `.torrent` file browser) |
+| `a` | Add torrent: paste a `magnet:` link, a `https://` (or `http://`) download URL, or a `.torrent` path, Enter to submit (`tab` opens a `.torrent` file browser) |
 | `↑` / `↓` (or `j` / `k`) | Move selection |
 | `←` / `→` (or `d` / `p`) | Switch between **Downloads** and **Previous Downloads** pages |
 | `enter` / `o` | Open the download's folder (Downloads page: opens `DownloadDir`; Previous Download page: opens that download's delivered folder) |
 | `i` | Toggle the delivered-folder view beneath the highlighted completed download |
-| `v` / `V` | Show scan details (per-file engine results) for the highlighted download |
-| `r` | Re-scan (Downloads: highlighted completed download; Previous Downloads: highlighted entry) |
+| `T` | Open the in-app **Settings** popup (theme, notifications, rates, scan/VPN toggles — persisted to `config.yaml`; `esc` closes) |
+| `f` | Re-open the file-selection picker for the selected torrent still awaiting a choice (`⚲ pick files` badge) |
+| `r` | Re-scan the highlighted entry (Previous Downloads page only) |
+| `s` | **Seed / un-seed** the highlighted clean entry (Previous Downloads page only) — toggles re-seeding that download into the swarm (hidden for non-clean / URL downloads) |
 | `x` | Delete (Downloads: cancel + remove partials; Previous Downloads: delivered folder) |
 | `g` | Refresh list / rebuild previous-downloads list |
 | `space` | Panic (pause all) / resume all when VPN is back |
 | `q` / `ctrl+c` | Quit |
 | `enter` / `esc` | Submit / cancel while typing in the add prompt |
 
+**File-selection picker** (auto-opens when an added torrent's file list is known and nothing has downloaded yet, or press `f`):
+
+| Key | Action |
+|-----|--------|
+| `space` / `s` | Toggle the highlighted file on/off |
+| `↑` / `k`, `↓` / `j` | Move through files (scrolls) |
+| `l` / `x` | Take all files |
+| `u` | Take none |
+| `enter` | Download the checked files (empty set = everything, never strands the torrent) |
+| `esc` | Download all files and close (`SelectAll`) |
+
 Previous Downloads page shows every delivered torrent from `clean/`, `quarantine/` and `scanning/` (colored: ✅ clean / ☠ quarantine / ⏳ scanning). Selecting an entry opens a pop-out panel on the right showing its `scan_report.txt` (size, file count, per-file verdicts).
 
 Inactive torrents (added or paused while VPN panic mode is active) stay visible in the Downloads list marked `PAUSED` so an add is never silently invisible; they resume automatically when the VPN comes back.
+
+### Settings popup (`T`)
+
+Press `T` on the Downloads page to open the in-app settings dialog. Settings are
+grouped under **CUSTOMISATION · DOWNLOAD OPTIONS · SECURITY OPTIONS · UPDATE
+OPTIONS** headers; `↑`/`↓` navigate (scrolling when the grouped list is taller
+than the popup), `enter`/`space`/`l`/`r` cycle the highlighted setting to its
+next value, `esc` closes. Every change is written straight back to `config.yaml`
+(created at `~/.config/mutiny/config.yaml` if missing), so it survives a
+restart; **`(restart)`** rows only apply on the next launch because the
+subsystem they tune is wired up at startup.
+
+| Setting | Cycles | Applies live |
+|---------|--------|--------------|
+| Theme | `pirate` → `cherry-blossom` → `neon` → `/home` → `coffee` (and back) | Yes — re-paints the whole UI immediately; each theme also swaps its icon set (progress-bar ship/island/globe, history markers, scan fences) |
+| Notifications | on / off — desktop alerts for download complete, scan finished clean, threats quarantined | Yes — `notify-send`, reads the shared config at send time |
+| Sea Shanty | on / off — plays `seashanty-edit.mp3` (`loading_song`) over the loading screen | `(restart)` — playback lasts exactly as long as the loading screen |
+| Full Shanty | on / off — swaps to the long `sea-shanty-full.mp3` | `(restart)` — also cut when the loading screen ends |
+| Max Download Rate / Max Upload Rate | unlimited → 1 MB/s → 20 MB/s → 50 MB/s → 100 MB/s | Yes — global rate limit |
+| Browser User-Agent | `chromium` → `firefox` — the UA sent on http(s) URL downloads (hosts like vimm.net 400 library/bot UAs) | Yes — applied to new URL downloads; a custom `user_agent` config still wins |
+| VPN Panic Guard | on / off | Yes — pauses/releases the panic handler |
+| Scan Files On The Fly | on / off | Yes — shared config consulted per file |
+| Scan On Completion | on / off | Yes |
+| Hash Reputation Check | on / off | `(restart)` |
+| Auto-Update Engines | on / off | `(restart)` |
+| Update Cadence | 6h → 12h → 24h → 48h → 7d → 28d | `(restart)` |
+| DHT Networking | on / off | `(restart)` |
+| File Picker On Add | on / off | Yes — picker vs auto-download-all on future adds |
+
+Themes never change the layout or the title bar (`⚓ Mutiny ⚓`); only colors
+and the icon set vary. Setting `theme:` in `config.yaml` (or cycling via `T`)
+picks one:
+
+| Theme | Look | Icons |
+|-------|------|-------|
+| `pirate` *(default)* | parchment (`#ffdd8a`) backdrop, sepia ink, blood-red threats | ship / island / globe, swords on scan steps |
+| `cherry-blossom` | off-white backdrop (`#fff0f2`), pinks & reds | cherry blossoms / petals on the progress bar, wilted rose for threats, flower scan fences |
+| `neon` | translucent purple backdrop (`#160b33`), electric cyan/green/yellow text | classic maritime icons in neon colors |
+| `/home` | deep-gray backdrop (`#1c1c1e`), white-on-gray terminal text, ANSI-bright accents | computer icons (floppy sails to a folder island), classic box-drawing popups |
+| `coffee` | tan/cappuccino backdrop (`#eddcba`), warm browns | a coffee cup sails past donut/cookie pastries |
 
 ### REST API
 
@@ -121,14 +179,154 @@ T="Authorization: Bearer $(awk '/api_token:/{print $2; exit}' ~/.config/mutiny/c
 # Add a .torrent file (multipart)
 curl -s -H "$T" -F "torrent=@/path/file.torrent" http://127.0.0.1:3030/api/torrents
 
-# Add a magnet link (JSON)
-curl -s -H "$T" -X POST -d '{"magnet":"magnet:?xt=urn:btih:..."}' \
+# Add a magnet link (JSON) — optional "files" subset (relative paths) and/or "wait": true
+# to hold the download until a selection is made (picker in TUI/web).
+curl -s -H "$T" -X POST -d '{"magnet":"magnet:?xt=urn:btih:...","wait":true}' \
      http://127.0.0.1:3030/api/torrents
+
+# Add a plain http(s) file download (JSON) — same list, events, pause/resume/
+# cancel, scanning and delivery as torrents. "referrer" is optional and is sent
+# as the request's Referer header (some hosts 400 without one).
+curl -s -H "$T" -X POST -d '{"url":"https://example.com/archive.zip","referrer":"https://gateway.example"}' \
+     http://127.0.0.1:3030/api/torrents
+
+# Choose which files of a torrent to download (relative paths as shown by the
+# API/UI; empty array = download all).
+curl -s -H "$T" -X POST -d '{"files":["Sub/a.bin","readme.txt"]}' \
+     http://127.0.0.1:3030/api/torrents/<id>/select
 ```
 
 Reads (`GET /api/torrents`, `/api/status`, `/api/vpn`) and the web UI
 (`/` + `/ws` WebSocket) stay open — browser WebSockets can't attach headers, so
 the token protects state-changing calls (add/pause/delete, VPN panic) only.
+With `api_token` set the server also seeds an HttpOnly `mutiny_token` cookie on
+GET so browser-driven POSTs work.
+
+#### Web parity endpoints
+
+```bash
+# Settings (same sections/rows as the TUI `T` popup) — cycle a value live:
+curl -s -H "$T" http://127.0.0.1:3030/api/settings
+curl -s -H "$T" -X POST -d '{"key":"theme"}' http://127.0.0.1:3030/api/settings/cycle
+
+# Previous Downloads (delivered torrents) + re-scan / delete / open:
+curl -s -H "$T" http://127.0.0.1:3030/api/history
+curl -s -H "$T" -X POST http://127.0.0.1:3030/api/history/<infohash>/rescan
+curl -s -H "$T" http://127.0.0.1:3030/api/history/<infohash>/rescan   # {running, step, files[]}
+curl -s -H "$T" -X POST http://127.0.0.1:3030/api/history/<id>/delete
+curl -s -H "$T" -X POST http://127.0.0.1:3030/api/history/<id>/open
+
+# Engine status (ClamAV / YARA / sandbox):
+curl -s -H "$T" http://127.0.0.1:3030/api/engines   # {"clamav":true,"yara":true,"sandbox":true}
+```
+
+History entry IDs are path-safe handles (`sha256(dir)[:8]` hex); the raw
+infohash is used for re-scans. The web UI is also served on the LAN and
+Tailscale when `web_lan` / `web_tailscale` are enabled:
+
+---
+
+## HTTP/HTTPS downloads (plain URLs)
+
+Any `http://` / `https://` URL can be added like a torrent — the `a` prompt, the
+CLI (`mutiny https://...` — handed off to a running instance if one is up), or
+the API above. It's streamed straight into `download_dir` as a normal row in the
+Downloads list and then fed through the **exact same pipeline as a torrent**:
+
+- **Progress, pause/resume/cancel, notifications**: URL entries appear in
+  `List()`, emit the same `torrent.*` events (complete → "Download complete"
+  notification), and honor the global download rate limit.
+- **Vpn-bind mode** (`vpn_bind_interface`): the HTTP client's dialer is pinned
+  to the tunnel (`SO_BINDTODEVICE`) so a URL download can never leak over the
+  physical NIC; a URL added while the VPN is down parks as `PAUSED` and resumes
+  on recovery.
+- **Scan → deliver**: on completion the file is staged into `scan_dir`, run
+  through the same engines/hash reputation/sandbox while being scanned, then
+  delivered — clean files to `clean/` (relaxed to `0644`), threats quarantined.
+  A `scan_report.txt` (keyed by the URL's hash id) is written, the entry records
+  a `complete`/`Relocated` state in the store, and it leaves the Downloads list
+  exactly like a finished torrent, remaining reachable via Previous Downloads
+  (where `r` re-scans it).
+- Only `http`/`https` are accepted (no `file://` or custom schemes); the same
+  URL added twice is a no-op. The filename comes from the URL path, falling back
+  to the `Content-Disposition` header when the path is opaque or extensionless;
+  the request is sent with a browser `User-Agent` (see `user_agent` /
+  `user_agent_browser` below — some hosts like vimm.net 400 library/bot UAs).
+- **Optional referrer**: the interactive add prompt asks for an optional referrer
+  after you submit an `http(s)` URL (`Enter` to send it, `Esc` to skip) — some
+  hosts return `400` until a `Referer` header is present. The same can be set
+  via the CLI (`mutiny -referrer https://gateway.example URL`) or the API JSON
+  body's `"referrer"` field. The current value is surfaced as `referrer` in the
+  API listing.
+
+---
+
+## Per-file download selection (pick the files you actually want)
+
+Adding a magnet/torrent no longer downloads everything blindly. Once the file
+list is known (`.torrent` adds know it instantly; magnets wait for metadata),
+the download is **held** until you choose — the TUI pops the picker, the web UI
+shows a `☑ files` button, and the API exposes `POST /api/torrents/<id>/select`.
+
+- **Every add path waits**: the `a`-prompt, `.torrent` browser, CLI args, and
+  OS-handoff (magnet link clicked in a browser → running instance via
+  `127.0.0.1:3030`). Restore (restart) is the only silent resumer — a saved
+  subset is re-applied without re-prompting.
+- **Paths are relative to the torrent root**, without the torrent-name prefix
+  for multi-file torrents (e.g. `Sub/a.bin`, not `TorrentName/Sub/a.bin`) —
+  that's what `f.DisplayPath()` produces and what the API/UI show.
+- **Empty subset = everything**: `SelectFiles(id, nil)`/`SelectAll` (TUI `esc`,
+  web "download all") fetch all files; the picker can never strand a torrent.
+- **Subset-aware completion & scanning**: anacrolix `Complete()` is only true
+  when *every* piece exists, which can never happen for unselected files. The
+  manager uses selection-aware `IsComplete()`/`selectionComplete()` so a partial
+  download still triggers staging, scanning, and clean delivery of just the
+  chosen files; unselected files are absent on disk and naturally skipped.
+- **Persisted across restarts**: the chosen set is written to the state store
+  and reapplied on restore (`Resume`/pause keeps it too).
+- Internals gotcha: `t.DownloadAll()` only schedules pieces and leaves file
+  download priority at `None`; the manager's full-download path (`downloadAll`)
+  sets per-file `Normal` priority uniformly with the subset path.
+
+---
+
+## Seeding (re-seed delivered downloads)
+
+A finished download can go back to **seeding** into the swarm. Two controls share a
+dedicated seed client (`internal/torrent/seed.go` `SeedEngine` — a second
+anacrolix client with `Seed=true`, `DataDir` under the clean root, listen port
+`TorrentPort+1`, VPN bind replicated):
+
+- **Global toggle** — **Re-Seed Completed Downloads** in Settings → DOWNLOAD
+  OPTIONS (`seed_completed`, default off). Gates whether any marked entry
+  actually seeds right now.
+- **Per-item toggle** — on the Previous Downloads page, press `s` (TUI) or `s`
+  (web) to flip a single clean entry between seeding / not.
+
+Only **clean** entries that still carry their bencoded metainfo are seedable.
+HTTP(S) downloads and delivered entries from before this feature (no saved
+metainfo) can't be re-seeded — the toggle is hidden/greyed for them. Each clean
+delivery is marked `Seeding: true` by default (the intent to re-seed); the per-item
+toggle persists `false` to exclude a specific one.
+
+Seeding state is captured at delivery — the manager records the torrent's
+bencoded metainfo via anacrolix `Torrent.Metainfo()` and persists `Metainfo` +
+`Seeding` in the state store (`internal/state/store.go`), preserved through
+re-scans. A `⬆ seeding` badge shows on seeding rows.
+
+The seed controller (`main.go` `seedController`, wired as `seedSvc`) lazily spins
+the engine and exposes `SeedNow` / `UnseedOne` / `Seeding` / `Toggle` /
+`SetEnabled` / `UploadRate` / `ReseedAll` / `UnseedAll`. Hookup: `completeTorrent`
+captures metainfo + auto-seeds clean deliveries when the global toggle is on;
+`rescanTorrent` preserves both fields and applies the verdict (clean → reseed if
+marked, threat/unscanned → unseed + clear mark); startup `ReseedAll` after the
+re-park loop; the VPN panic `g` toggle and `vpnMon` panic/recover hooks drain and
+reseed the seed client.
+
+```bash
+# Toggle one entry (web) — body-free POST, returns the new state:
+curl -s -H "$T" -X POST http://127.0.0.1:3030/api/history/<infohash>/seed
+```
 
 ---
 
@@ -138,13 +336,24 @@ Config lookup order: `--config` flag → `./config.yaml` → `~/.config/mutiny/c
 
 | Option | Default | Meaning |
 |--------|---------|---------|
-| `host` / `port` | `127.0.0.1` / `3030` | API bind address/port |
+| `host` / `port` | `127.0.0.1` / `3030` | API bind address/port (loopback served always) |
+| `web_lan` / `web_tailscale` | `true` / `true` | Also serve the web UI + API on the host's private LAN / Tailscale addresses (see firewall note below) |
 | `download_dir` | `~/Downloads/Mutiny` | Download root |
 | `scan_dir` / `clean_dir` / `quarantine_dir` | `~/Downloads/Mutiny/{scanning,clean,quarantine}` | Staging dirs (dirs created 0700) |
+| `user_agent` | Chrome on Linux | User-Agent on http(s) URL downloads; hosts like vimm.net 400 bots/library UAs and need a browser UA |
+| `user_agent_browser` | `chromium` | Stock desktop UA picker (`firefox` / `chromium`); toggle live from the `T` popup. A custom `user_agent` overrides it |
 | `clamav_socket` | `/var/run/clamav/clamd.ctl` | ClamAV daemon socket |
 | `yara_rules_dir` | `~/.local/share/mutiny/rules` | YARA rules directory |
 | `scan_on_the_fly` | `true` | Scan each file as it completes |
 | `scan_on_completion` | `true` | Stage + relocate finished torrents |
+| `wait_for_selection` | `true` | Hold new adds until files are chosen (picker) instead of auto-downloading everything |
+| `theme` | `pirate` | TUI theme, changeable live from the `T` settings popup: `pirate`, `cherry-blossom`, `neon`, `/home`, `coffee` |
+| `notifications` | `true` | Desktop notifications (`notify-send`) for download complete, scan-finished-clean and threats-quarantined; toggle live from the `T` popup |
+| `loading_song` | `~`-independent `/home/lumb3r/Downloads/seashanty-edit.mp3` | Sea shanty played over the loading screen (`""` disables it; `~(tilde)`-unexpanded path). Toggle from `T` (needs restart) |
+| `full_shanty` | `false` | `true` plays the long `sea-shanty-full.mp3` instead; either way playback stops when the loading screen ends |
+| `max_download_rate` / `max_upload_rate` | `0` | Global rate caps (`0`=unlimited, `1M`, `20M`, `50M`, `100M`); live-adjustable from the `T` popup |
+| `dht_enabled` | `true` | DHT networking (needs restart) |
+| `seed_completed` | `false` | **Re-seed delivered torrents**: when on, clean delivered torrents that still have their metainfo are re-seeded into the swarm via a dedicated seed client (listen port `listen_port + 1`). Toggle live from the `T` popup; per-entry override with `s` on Previous Downloads. |
 | `max_file_size_scan` | `100G` | Files larger than this are skipped (parked unscanned, never quarantined) |
 | `scan_oversized` | `false` | `true` = disable the size cap; scan very large files best-effort (per-file deadline still capped) |
 | `scan_timeout` | `20m` | Per-file engine deadline (both engines share it; hung subprocess is killed, incl. grandchildren) |
@@ -169,6 +378,11 @@ Config lookup order: `--config` flag → `./config.yaml` → `~/.config/mutiny/c
 | `vpn_bind_interface` | `` | Pin torrent sockets to this device (`SO_BINDTODEVICE`); unset = no binding. Must match `vpn_interface` |
 | `vpn_check_interval` | `5s` | VPN liveness poll interval |
 | `listen_port` | `42069` | BitTorrent listen port |
+
+> **LAN/web firewall:** if `web_lan: true` but other devices time out loading
+> `http://<host-ip>:3030/`, the host firewall is likely dropping it — e.g. UFW
+> input policy `DROP` with no rule for 3030:
+> `sudo ufw allow from 192.168.68.0/24 to any port 3030 proto tcp comment 'mutiny web ui'`.
 
 ---
 
@@ -355,13 +569,18 @@ Set `mb_api_key` in config if you deliver large multi-file torrents regularly or
 
 | Symptom | Cause / fix |
 |---------|-------------|
+| Added a torrent but nothing downloads / no picker appears | It's a magnet still fetching metadata — the picker pops when the file list arrives (poll is ~2s). Single-file torrents still get a one-file picker. If the badge stays `⚲ pick files`, press `f` to reopen it |
+| Old binary still auto-downloads everything | The handoff server process wasn't restarted after upgrading — `./dev.sh rebuild` kills it, then relaunch `-mode server` (or `tui`) |
 | Files stay at the download root after 100% | Completion callback didn't fire (fixed via completion-transition tracking); restarting mutiny reprocesses leftovers and delivers them |
 | Every file shows `[unscanned]` | No engine ran — with `scan_container` set, run `./dev.sh scan-up`; otherwise check `clamav-daemon.socket` is active and `~/.local/share/mutiny/rules/` is non-empty |
 | Large files missing from results | Over `max_file_size_scan` (default 100G) — recorded as `skipped (file too large)`, not scanned/quarantined; set `scan_oversized: true` to scan them best-effort |
 | YARA matching nothing suspicious | Custom set intentionally excludes high-false-positive rules (THOR `filename` externals dropped) |
 | YARA rules never seem to update | Rules dir isn't a git repo **and** no `yara_rules_url` set — the URL fetch only runs for non-repo dirs |
 | Auto-update logs `sha256 mismatch ... refusing to install` | The `yara_rules_sha256` pin no longer matches (forge ships weekly). Bump the digest, or remove the pin to fall back to GitHub-metadata verification |
-| `401` on /api POST/DELETE | `api_token` is set but the request lacks `Authorization: Bearer <token>` / `X-Api-Token` — GETs and the web UI are not token-gated |
+| `401` on /api POST/DELETE | `api_token` is set but the request lacks `Authorization: Bearer <token>` / `X-Api-Token` — GETs and the web UI are not token-gated; the web origin uses the seeded `mutiny_token` cookie |
+| Other devices can't open the web UI | `web_lan` / `web_tailscale` off, or the host firewall drops port 3030 — allow it (see the firewall note in Configuration) |
+| `s` does nothing on a history entry | The entry isn't seedable: only **clean** torrents that still have their metainfo can be re-seeded. HTTP(S) downloads and delivered entries from before the seeding feature (no saved metainfo) can't — the key is hidden for them |
+| Seeding toggle is on but nothing seeds | `seed_completed` is the master gate — it must be on (`T` → DOWNLOAD OPTIONS). The per-item `s` toggle only marks entries; the global switch decides whether marked ones actually seed. Also needs the VPN up (seed client binds like the main one) |
 | All sandbox verdicts are `unknown` | Sample is Windows/PE or a script without an interpreter — by design it's not executed and recorded unscanned (never delivered) |
 | Quarantine files can't be read (`permission denied`) | By design — threats are chmod **0000** after delivery; use the deliver/restore flow |
 | `invalid_request` / slow per-file scans from hash checks | Anonymous MalwareBazaar throttle (1 req/s) or daily quota — set `mb_api_key` to eliminate both |
