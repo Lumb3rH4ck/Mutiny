@@ -330,6 +330,39 @@ curl -s -H "$T" -X POST http://127.0.0.1:3030/api/history/<infohash>/seed
 
 ---
 
+## Storage (btrfs note)
+
+Mutiny writes straight into `download_dir` and lets anacrolix manage piece files
+there, then relocates finished downloads into `scanning/` → `clean/` /
+`quarantine/`. On **copy-on-write filesystems (btrfs, zfs)** this can interact
+poorly with filesystem-level compression:
+
+- A download climbs to ~99.8-99.9% and **oscillates there forever** — never
+  hitting 100% and never scanning. The log shows consecutive `hashed piece
+  <n> (passed=false)` lines.
+- Root cause: btrfs `compress=zstd` (or `compress=zstd:3`, the common default)
+  plus COW means a piece's bytes read back differently than they were hashed in
+  memory, so anacrolix fails the piece check, discards it, and re-downloads it —
+  a loop that never converges, worst on the boundary pieces at the end of each
+  file.
+
+**Fix** — mark the download tree no-COW so btrfs stores those files uncompressed
+and contiguous (`+C` implies no compression on btrfs):
+
+```bash
+sudo chattr +C -R ~/Downloads/Mutiny
+```
+
+Apply it to the download root and its `scanning/`, `clean/`, `quarantine/`
+subdirectories. New files created inside a `+C` directory inherit it, so one
+application is enough; the `-R` may complain about a few pre-existing files
+(`.torrent.db`, old media) but setting it on the directories is what matters.
+Verify with `lsattr -d ~/Downloads/Mutiny` — you want to see the `C` flag.
+
+This is only a COW-filesystem concern; on ext4 / xfs / ntfs none of this applies.
+
+---
+
 ## Configuration
 
 Config lookup order: `--config` flag → `./config.yaml` → `~/.config/mutiny/config.yaml`. Key options (`~/Work/Mutiny/config.yaml`):
@@ -572,6 +605,8 @@ Set `mb_api_key` in config if you deliver large multi-file torrents regularly or
 | Added a torrent but nothing downloads / no picker appears | It's a magnet still fetching metadata — the picker pops when the file list arrives (poll is ~2s). Single-file torrents still get a one-file picker. If the badge stays `⚲ pick files`, press `f` to reopen it |
 | Old binary still auto-downloads everything | The handoff server process wasn't restarted after upgrading — `./dev.sh rebuild` kills it, then relaunch `-mode server` (or `tui`) |
 | Files stay at the download root after 100% | Completion callback didn't fire (fixed via completion-transition tracking); restarting mutiny reprocesses leftovers and delivers them |
+| Download stalls at ~99.8-99.9% and never finishes | On btrfs with `compress=zstd` (or zfs), COW + compression makes pieces fail hash verification in a loop — the log shows `hashed piece <n> (passed=false)`. Fix: `sudo chattr +C -R ~/Downloads/Mutiny` (see Storage); new downloads inherit the no-COW flag |
+| Unselected files show failed scans / 100% in the file box | Pre-fix behaviour: the scanner ran against every file in the torrent metadata, including files the user deselected (and that PruneUnselected deleted). Fixed — only the chosen subset is scanned, and the file box now shows only selected files |
 | Every file shows `[unscanned]` | No engine ran — with `scan_container` set, run `./dev.sh scan-up`; otherwise check `clamav-daemon.socket` is active and `~/.local/share/mutiny/rules/` is non-empty |
 | Large files missing from results | Over `max_file_size_scan` (default 100G) — recorded as `skipped (file too large)`, not scanned/quarantined; set `scan_oversized: true` to scan them best-effort |
 | YARA matching nothing suspicious | Custom set intentionally excludes high-false-positive rules (THOR `filename` externals dropped) |
