@@ -1,242 +1,329 @@
-# Mutiny
+# ⚓ Mutiny
 
-Malware-aware torrent client with automatic scanning, quarantine, and VPN panic switch.
+**Malware-aware BitTorrent client with VPN gating, dual-engine scanning, and staged delivery.**
+
+![Mutiny TUI — Main view](assets/mutiny-tui-main.png)
+
+[![Release](https://img.shields.io/github/v/release/Lumb3rH4ck/mutiny?style=flat-square)](https://github.com/Lumb3rH4ck/mutiny/releases)
+[![License](https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square)](LICENSE)
+[![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows-green?style=flat-square)]()
+[![Go](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat-square&logo=go)]()
+
+---
 
 ## Features
 
-- **Torrent downloads** via anacrolix/torrent (magnet links + .torrent files)
-- **Per-file download selection** — pick which files inside a torrent to fetch (TUI/web picker, persisted across restarts)
-- **Automatic malware scanning** on download completion (ClamAV + YARA)
-- **Auto-quarantine** suspicious files (chmod 000, moved to quarantine dir)
-- **VPN panic switch** — stops all torrents if VPN tunnel drops
-- **Dual frontend** — web UI (htmx) + TUI (Bubble Tea), same API
-- **Real-time updates** via WebSocket
-- **Download/scan status** with progress tracking
+### Core
+- **TUI + Web UI** — full terminal interface mirrors the browser; both have the same keybindings, themes, and live updates
+- **Dual-engine scanning** — ClamAV + YARA on every file, with aggregated verdicts
+- **Hash reputation** — SHA-256 checked against MalwareBazaar after a clean verdict (hashes only, no content leaves the machine)
+- **Staged delivery** — downloads land in `scanning/` → `clean/` or `quarantine/`; partial files are 0600, quarantine is chmod 0000
+- **On-the-fly scanning** — per-file scan as each file finishes, not only at download end
+- **Per-file selection** — choose which files inside a torrent to download before anything starts (TUI picker, web picker, API); choice persisted across restarts
 
-## Architecture
+### Security
+- **VPN gating** — auto-panic pauses all downloads when the tunnel drops; sockets pinned to the interface so traffic fails closed instead of leaking over the NIC
+- **Containerized engines** — ClamAV + YARA run inside a Docker sandbox (read-only rootfs, no caps, no network)
+- **Behavior sandbox** — executables run in an isolated throwaway container (strace capture, Linux only)
+- **API token auth** — optional bearer token for state-changing calls; browser-friendly cookie auth for the web UI
+- **MalwareBazaar hash check** — catches known-bad files even when engines are down
 
+### Cross-Platform
+
+| Feature | Linux | Windows |
+|---------|:-----:|:-------:|
+| TUI | ✅ | ✅ |
+| Web UI + API | ✅ | ✅ |
+| ClamAV + YARA scanning | ✅ | ✅ |
+| Hash reputation | ✅ | ✅ |
+| VPN gating + panic | ✅ | ✅ |
+| VPN socket binding (SO_BINDTODEVICE) | ✅ | — |
+| Containerized engines (Docker) | ✅ | ✅* |
+| Behavior sandbox (strace) | ✅ | — |
+| Re-seeding | ✅ | ✅ |
+| Desktop notifications | ✅ | — |
+| Systemd user service | ✅ | — |
+| Omarchy shell widget | ✅ | — |
+
+\* Docker Desktop on Windows; Windows containers not supported (Linux containers via WSL2).
+
+### Extras
+- **5 themes** — `pirate` (default), `cherry-blossom`, `neon`, `/home`, `coffee` — each with its own icon set
+- **Built-in auto-update** — `freshclam` + YARA rules refreshed on a timer
+- **Re-seed delivered downloads** — toggle global or per-item via a dedicated seed client
+- **Sea shanty loading screen** — plays a shanty while loading (configurable)
+- **HTTP(S) direct links** — add any URL pointing at a `.torrent` file like a normal download
+
+---
+
+## Installation
+
+### Arch Linux / Omarchy
+
+**AUR** (recommended):
+```bash
+omarchy pkg aur add mutiny-bin
+# or
+paru -S mutiny-bin
 ```
-[Browser/TUI] ←→ HTTP API ←→ Go Backend
-                                  ├── anacrolix/torrent
-                                  ├── ClamAV (clamdscan)
-                                  ├── YARA rules
-                                  └── VPN monitor (interface check)
+
+**One-line installer**:
+```bash
+curl -fsSL https://raw.githubusercontent.com/Lumb3rH4ck/mutiny/main/install.sh | sh
 ```
+
+### Other Linux
+
+**Download a release**:
+```bash
+VER=$(curl -fsSL https://api.github.com/repos/Lumb3rH4ck/mutiny/releases/latest | grep tag_name | cut -d'"' -f4)
+curl -fsSL -o /tmp/mutiny.tar.gz \
+  "https://github.com/Lumb3rH4ck/mutiny/releases/download/${VER}/mutiny_${VER}_linux_amd64.tar.gz"
+tar -xzf /tmp/mutiny.tar.gz -C /tmp/
+sudo cp /tmp/mutiny*/mutiny /usr/local/bin/mutiny
+```
+
+**Build from source**:
+```bash
+git clone https://github.com/Lumb3rH4ck/mutiny.git
+cd mutiny
+./dev.sh install    # builds + installs to ~/.local/bin/mutiny
+```
+
+### Windows
+
+**winget**:
+```powershell
+winget install Lumb3rH4ck.Mutiny
+```
+
+**chocolatey**:
+```powershell
+choco install mutiny
+```
+
+**Download** — grab the `.zip` from [Releases](https://github.com/Lumb3rH4ck/mutiny/releases) and extract `mutiny.exe` anywhere on PATH.
+
+---
 
 ## Quick Start
 
 ```bash
-# Install dependencies
-sudo pacman -S clamav yara go
-sudo systemctl enable --now clamav-daemon
+# TUI (terminal interface)
+mutiny -mode tui
 
-# Clone and build
-cd Mutiny
-go mod tidy
-go build -o mutiny .
+# Headless server (web UI + API on :3030)
+mutiny -mode server
 
-# Run server (HTTP API + web UI on :3030)
-./mutiny -mode server
-
-# Or run TUI
-./mutiny -mode tui
-
-# Auto-add on launch (also the handler used for clicked magnet links / .torrent files)
-./mutiny -mode tui ./ubuntu.iso.torrent 
-./mutiny -mode tui "magnet:?xt=urn:btih:…"
+# Open the web UI
+xdg-open http://127.0.0.1:3030
 ```
 
-## API
+Or use the desktop entries: search "Mutiny" in your application launcher.
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/torrents` | List all torrents |
-| POST | `/api/torrents` | Add magnet or .torrent file |
-| POST | `/api/torrents/:id/select` | Choose which files to download (`{"files":["Sub/a.bin",…]}`; empty = all) |
-| GET | `/api/torrents/:id` | Get torrent status |
-| POST | `/api/torrents/:id/pause` | Pause download |
-| POST | `/api/torrents/:id/resume` | Resume download |
-| DELETE | `/api/torrents/:id` | Cancel + remove |
-| GET | `/api/vpn` | VPN status |
-| POST | `/api/panic` | Manual panic trigger |
-| WS | `/ws` | Real-time events |
+---
 
-## Config
+## Commands
 
-Edit `config.yaml`:
-
-```yaml
-host: "127.0.0.1"
-port: 3030
-download_dir: "~/Downloads/Mutiny"
-quarantine_dir: "~/Downloads/Mutiny/quarantine"
-clamav_socket: "/var/run/clamav/clamd.ctl"
-yara_rules_dir: "./rules"
-vpn_interface: "wg0"
-vpn_bind_interface: "wg0"  # PIN every torrent socket to the tunnel (SO_BINDTODEVICE), fail closed if the tunnel drops
-vpn_check_interval: 5
-panic_enabled: true
-theme: "default"   # "default" or "pirate" (parchment & ink look)
+```bash
+mutiny -mode tui                              # Launch TUI
+mutiny -mode server                           # Launch server (web UI + API)
+mutiny -mode tui ~/Downloads/file.torrent     # Add torrent on launch
+mutiny -mode tui "magnet:?xt=urn:btih:..."   # Add magnet on launch
+mutiny --version                              # Print version
+mutiny --config ~/.config/mutiny/config.yaml  # Custom config path
+mutiny -no-web-lan                            # Disable LAN serving
+mutiny -no-web-tailscale                      # Disable Tailscale serving
 ```
 
-`vpn_bind_interface` is optional but recommended: set it to your VPN tunnel's
-interface name. Every listener and outgoing peer connection is then bound to
-that device, so a dead tunnel errors out instead of silently failing over to
-your physical NIC. In this mode inbound TCP is disabled (outbound TCP still
-works via bound sockets) and any IP family the tunnel has no address for is
-switched off. If the interface is missing or has no address at startup, mutiny
-refuses to start rather than run unbound.
+### Dev Commands
+```bash
+./dev.sh build       # Build ./mutiny
+./dev.sh install     # Build + install to ~/.local/bin/mutiny
+./dev.sh rebuild     # Build + install + kill running instance
+./dev.sh scan-build  # Build the scan container image
+./dev.sh scan-up     # Start the scan container
+./dev.sh scan-down   # Stop the scan container
+./dev.sh scan-logs   # Follow scan container logs
+```
 
-Downloaded files are created with private permissions (0600) while unvetted, so
-an unfinished download is never world-readable; files that pass the scan get
-relaxed to 0644 when delivered into `clean/`, and threats stay locked down in
-`quarantine/`.
+---
 
-Behavior analysis is fail-closed: if a sample cannot actually execute in the
-Linux sandbox (a Windows `.exe`, `.bat`, `.ps1`, ... , or a script with no
-interpreter), or the sandbox infrastructure itself errors out, mutiny records
-the file as **unscanned** instead of benign — no behavior evidence means no
-"clean" verdict — and it stays parked in the staging dir rather than being
-delivered.
-
-Files larger than `max_file_size_scan` (default 100 GiB) are never silently
-"cleaned": they are skipped and parked **unscanned** in the staging dir, so a
-torrent containing one will not be delivered. Set `scan_oversized: true` in
-config.yaml to explicitly accept that trade-off and scan very large files
-best-effort instead (per-file deadlines are capped, so even a multi-TB file
-cannot hang a scan indefinitely).
-
-Hash-reputation lookups (MalwareBazaar) fail open by default: an outage just
-logs a warning and the scan continues on ClamAV/YARA evidence. Set
-`malwarebazaar_fail_closed: true` if you prefer that a lookup error mark the
-file **unscanned** (parked, not delivered) instead of trusted.
-
-The HTTP/WebSocket server binds to 127.0.0.1, so only local processes can reach
-it. If you want a same-user local process to be unable to drive it (add
-torrents, pause/resume, delete, trigger VPN panic), set `api_token:
-<random-string>` in config.yaml. Mutating `/api/*` requests must then carry
-`Authorization: Bearer <token>` (or `X-Api-Token: <token>`); read-only GETs and
-the web UI, which rely on browser WebSockets that cannot attach headers, stay
-open. Copy the token is a precaution — it appears in config.yaml (chmod 600 on
-startup) but not in the logs or TUI.
-
-Host-side scan helpers (`clamscan`, `yara`, `file`, `bsdtar`) are normally
-resolved through your PATH. If mutiny runs under a different user than the one
-controlling PATH, or PATH could be hijacked, set `trusted_tool_paths: true` to
-resolve them at their well-known absolute locations (`/usr/bin`, `/bin`,
-`/usr/local/bin`) instead. Container mode is unaffected (tools run inside the
-image).
-
-Archive contents are extracted for YARA scanning via libarchive's `bsdtar`. In
-container mode the untarring never runs on the host: it happens inside a
-throwaway container built from the scan image (network cut, no capabilities,
-read-only filesystem, the archive mounted read-only), landing on a size-capped
-tmpfs so a hostile archive — a zip bomb — can never inflate onto a real device.
-The expanded tree is capped at 2 GiB / 25,000 members; archives exceeding that
-fall back to scanning their raw bytes. A scan image built before
-`libarchive-tools` was added logs a warning and degrades to host extraction
-until it is rebuilt (`./dev.sh scan-up`).
-
-Signatures and rules are kept fresh **built-in**: `auto_update: true` (default)
-refreshes ClamAV signatures (`freshclam`, inside the scan container in container
-mode) and YARA rules on `update_interval` (default 7d, min 1h), starting at
-launch without disrupting in-flight scans. Two YARA sources are supported:
-
-- If `yara_rules_dir` is a **git working tree**, it is updated with `git pull
-  --ff-only`.
-- Otherwise `yara_rules_url` is fetched (zip/tar.gz, capped at 512 MiB) and its
-  rule files are merged in — local files not present in the archive (e.g. your
-  own `custom.yar`) are preserved. Downloads are refused if they contain path
-  traversal or non-regular entries. A sensible choice is the curated YARA Forge
-  "core" package:
-  `https://github.com/YARAHQ/yara-forge/releases/latest/download/yara-forge-rules-core.zip`.
-
-Rules archives are **checksum-pinned**. For GitHub release download URLs the
-download is verified against the sha256 published in that release's metadata
-(each asset has a `digest: sha256:...` field), so weekly rule releases keep
-working. For other URLs — or to pin a specific archive and hard-fail on any
-change — set `yara_rules_sha256: <hex>`; any mismatch then aborts the update
-
-Hundreds of attacker-controlled binaries run inside the behavior sandbox, so
-its container is additionally resource-capped: `sandbox_memory` (default `1g`),
-`sandbox_pids_limit` (default 256, bounds fork-bombs), and `sandbox_cpus`
-(default `1`) — a sample cannot starve the machine even with `--cap-drop`
-and `no-new-privileges` in place. Archive extraction containers get a pids
-limit too (`--memory` is deliberately absent there: the 2 GiB tmpfs ceiling
-counts against it).
-
-## TUI Keys
+## TUI Keybindings
 
 | Key | Action |
 |-----|--------|
-| `a` | Add magnet link or .torrent path (`tab` in the prompt opens a .torrent file browser) |
-| `←`/`→` | Switch Downloads / Previous Downloads tabs — on Previous Downloads, `→` additionally focuses the selected entry's scan report (full-window view) |
-| `o` / `enter` | Open folder (Previous Downloads: selected entry; Downloads: delivered folder if completed, else download root) |
-| `↑`/`↓` (`k`/`j`) | Navigate the active list — while a scan report is focused, scroll through the entire report |
-| `i` | Toggle the delivered-folder view shown beneath the highlighted completed download |
-| `v` / `V` | Show scan details (per-file engine results) for the highlighted download |
-| `r` | Re-scan (Downloads: highlighted completed download; Previous Downloads: highlighted entry — re-runs ClamAV/YARA/behavior analysis on its delivered files) |
-| `x` | Delete (Downloads: any download — cancels it and removes partial data; Previous Downloads: delivered folder) |
-| `g` | Refresh / reload history |
-| `space` | Manual panic / resume |
-| `q` | Quit |
+| `a` | Add torrent / magnet / URL |
+| `↑↓` / `jk` | Navigate |
+| `←→` / `dp` | Switch pages |
+| `enter` / `o` | Open download folder |
+| `T` | Settings popup (themes, rates, toggles) |
+| `f` | Re-open file picker |
+| `r` | Re-scan (Previous Downloads page) |
+| `s` | Toggle seeding (Previous Downloads page) |
+| `g` | Refresh |
+| `space` | Panic / resume |
+| `q` / `ctrl+c` | Quit |
 
-## Scanning
+---
 
-Files are scanned on completion using:
-1. **ClamAV** (signature-based, fast)
-2. **YARA** (custom rules in `rules/`)
+## Web UI & API
 
-Detected threats are moved to `quarantine/` with permissions removed (chmod 000).
+The web UI at `http://127.0.0.1:3030` mirrors the TUI. The REST API:
 
-Files larger than `max_file_size_scan` (default `100G`) are skipped. The per-file
-scan deadline (`scan_timeout`, default `20m`) is a base that scales up with file
-size, so multi-GB videos get budget proportional to what it takes to read them
-while a hung engine is still eventually killed. A completed
-download can be re-checked at any time from the TUI (`r`) — it re-runs every
-engine over the delivered files and re-delivers by outcome, which is useful after
-pulling fresh YARA rules or ClamAV signatures.
+```bash
+# List torrents (no auth)
+curl -s http://127.0.0.1:3030/api/torrents
 
-## VPN Panic
+# Add a magnet (token required if api_token set)
+curl -s -H "Authorization: Bearer $TOKEN" \
+  -X POST -d '{"magnet":"magnet:?xt=urn:btih:..."}' \
+  http://127.0.0.1:3030/api/torrents
 
-Monitors the VPN interface (default: `wg0`). If it goes down:
-1. All torrent connections are immediately dropped
-2. Both UIs show panic overlay
-3. Partial downloads remain in quarantine
+# Add an http(s) URL
+curl -s -H "Authorization: Bearer $TOKEN" \
+  -X POST -d '{"url":"https://example.com/file.torrent"}' \
+  http://127.0.0.1:3030/api/torrents
 
-Manual panic: press `space` in TUI or click PANIC in web UI.
+# Select which files to download
+curl -s -H "Authorization: Bearer $TOKEN" \
+  -X POST -d '{"files":["Sub/a.bin","readme.txt"]}' \
+  http://127.0.0.1:3030/api/torrents/<id>/select
 
-## Desktop Entry
-
-`./dev.sh install` (or `make install`) installs the binary, icons, and desktop
-entries, and registers mutiny as the **default handler** for `.torrent` files and
-`magnet:` links:
-
-- `xdg-mime default mutiny.desktop application/x-bittorrent`
-- `xdg-mime default mutiny.desktop x-scheme-handler/magnet`
-- `xdg-settings set default-url-scheme-handler magnet mutiny.desktop`
-
-The entries accept the opened item with `%U` and launch the TUI, so a magnet
-clicked in a browser or a `.torrent` double-clicked in a file manager is added
-automatically:
-
-```ini
-[Desktop Entry]
-Type=Application
-Name=Mutiny
-Comment=Malware-aware torrent client
-Exec=/home/lumb3r/.local/bin/mutiny -mode tui %U
-Icon=mutiny
-Terminal=true
-MimeType=application/x-bittorrent;x-scheme-handler/magnet;
-Categories=Network;FileTransfer;P2P;
+# Settings
+curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:3030/api/settings
+curl -s -H "Authorization: Bearer $TOKEN" -X POST -d '{"key":"theme"}' \
+  http://127.0.0.1:3030/api/settings/cycle
 ```
 
-**Single-instance handoff** — `mutiny [file.torrent] [magnet:...]` checks (before
-opening the state store or listening on the torrent port) whether an instance is
-already running by probing `GET /api/status` on `127.0.0.1:3030`. If so, it POSTs
-each `.torrent` (multipart) and magnet (JSON) to the running session's
-`/api/torrents` (using the `api_token` from config as Bearer auth) and exits —
-the already-running instance, TUI or server (TUI mode exposes the API in the
-background), picks the adds up. With no listener, the new process starts its own
-session and adds the arguments directly.
+---
+
+## Firewall & System Rules
+
+### UFW (Linux)
+If `web_lan: true` but other devices time out on port 3030:
+```bash
+sudo ufw allow from 192.168.68.0/24 to any port 3030 proto tcp comment 'mutiny web ui'
+```
+
+### Windows Defender Firewall
+Allow `mutiny.exe` through the firewall if LAN access is needed:
+```powershell
+New-NetFirewallRule -DisplayName "Mutiny Web UI" -Direction Inbound -Protocol TCP -LocalPort 3030 -Action Allow
+```
+
+### btrfs / COW Filesystems
+If downloads stall at ~99.8% forever (piece hash loop):
+```bash
+sudo chattr +C -R ~/Downloads/Mutiny
+```
+
+### ClamAV Daemon (Linux)
+```bash
+sudo systemctl enable --now clamav-daemon.service
+sudo systemctl enable --now clamav-daemon.socket
+```
+
+### Systemd User Service
+```bash
+systemctl --user enable --now mutiny.service
+```
+
+---
+
+## Configuration
+
+Config lookup: `--config` flag → `./config.yaml` → `~/.config/mutiny/config.yaml`.
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `host` / `port` | `127.0.0.1` / `3030` | API bind address |
+| `download_dir` | `~/Downloads/Mutiny` | Download root |
+| `scan_dir` | `~/Downloads/Mutiny/scanning` | Scanning staging dir |
+| `clean_dir` | `~/Downloads/Mutiny/clean` | Clean delivery dir |
+| `quarantine_dir` | `~/Downloads/Mutiny/quarantine` | Threat quarantine dir |
+| `clamav_socket` | `/var/run/clamav/clamd.ctl` | ClamAV daemon socket |
+| `yara_rules_dir` | `~/.local/share/mutiny/rules` | YARA rules directory |
+| `scan_container` | `` (local) | Docker container for scanning |
+| `vpn_interface` | `surfshark_wg` | VPN interface to monitor. In-app setting cycles common options (`surfshark_wg`, `wg0`, `tun0`, `nordlynx`, `proton0`, `tailscale0`, etc.). Restart required. |
+| `vpn_bind_interface` | `` | Pin torrent sockets to device |
+| `api_token` | `` (off) | Bearer token for API auth |
+| `theme` | `pirate` | TUI theme |
+| `web_lan` / `web_tailscale` | `true` | Serve on LAN / Tailscale |
+| `seed_completed` | `false` | Re-seed delivered downloads |
+| `scan_timeout` | `20m` | Per-file engine deadline |
+
+Full configuration reference: [Mutiny.md](Mutiny.md)
+
+---
+
+## Technical
+
+### Architecture
+
+```
+                    VPN monitor
+                      │  panic / recover
+┌───────────┐  add   ┌──────────────┐  events   ┌──────────────┐
+│ TUI / Web │ ─────► │  torrent.Man │ ────────► │  main.go     │
+│(Bubble Tea)│       │  anacrolix   │           │  scanPath    │
+└───────────┘        └──────┬───────┘           └──────┬───────┘
+                            │                          │
+                      ┌─────▼──────────────────────┐   │
+                      │  Downloads/Mutiny/          │   │
+                      │  scanning/ → clean/ | quar. │   │
+                      └─────┬──────────────────────┘   │
+                            │                          │
+                      ┌─────▼─────────┐          ┌─────▼──────┐
+                      │  scanner.New  │          │ state store│
+                      │  clamdscan +  │          │  .state/   │
+                      │  yara         │          │  state.json│
+                      └───────────────┘          └────────────┘
+```
+
+### Build
+- Pure Go, no cgo — cross-compiles to `linux/amd64`, `linux/arm64`, `windows/amd64`
+- Web UI embedded via `//go:embed` (works from any CWD)
+- GoReleaser builds, SBOM, checksums, cosign signing
+
+### Dependencies
+
+| Component | Dependency |
+|-----------|------------|
+| BitTorrent client | [anacrolix/torrent](https://github.com/anacrolix/torrent) v1.58.1 |
+| TUI framework | [Bubble Tea](https://github.com/charmbracelet/bubbletea) + Bubbles + Lipgloss |
+| WebSockets | [gorilla/websocket](https://github.com/gorilla/websocket) |
+| Config | [yaml.v3](https://github.com/go-yaml/yaml) |
+| ClamAV | System package (`clamav`) |
+| YARA | System package (`yara`) or rules only |
+| Container runtime | Docker (optional, for containerized scanning) |
+
+### Build Dependencies
+- Go 1.24+
+- Docker (optional, for `scan_container` mode)
+- `clamav` package (for ClamAV scanning)
+- `yara` package (for YARA scanning)
+
+### Directory Layout
+```
+~/Downloads/Mutiny/
+├── clean/          # Clean deliveries (chmod 0644)
+├── quarantine/     # Threat files (chmod 0000)
+├── scanning/       # Staging / unscanned
+└── .state/         # State store (state.json)
+```
+
+### Scan Flow
+1. Add torrent → files stream to download root
+2. Per-file scan (ClamAV + YARA) as each file completes
+3. SHA-256 reputation check against MalwareBazaar
+4. Download completes → relocate to `scanning/`
+5. Aggregate verdict → `clean/` or `quarantine/`
+6. `scan_report.txt` written next to delivered files
+
+### Security Model
+- Fail-closed: no single-engine `clean` verdict
+- Partial files 0600, clean 0644, quarantine 0000
+- VPN socket binding (`SO_BINDTODEVICE`, Linux)
+- Engine sandboxing via Docker (read-only, no caps, no network)
+- API token constant-time comparison
