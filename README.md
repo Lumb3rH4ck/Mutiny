@@ -216,17 +216,6 @@ mutiny -no-web-lan                            # Disable LAN serving
 mutiny -no-web-tailscale                      # Disable Tailscale serving
 ```
 
-### Dev Commands
-```bash
-./dev.sh build       # Build ./mutiny
-./dev.sh install     # Build + install to ~/.local/bin/mutiny
-./dev.sh rebuild     # Build + install + kill running instance
-./dev.sh scan-build  # Build the scan container image
-./dev.sh scan-up     # Start the scan container
-./dev.sh scan-down   # Stop the scan container
-./dev.sh scan-logs   # Follow scan container logs
-```
-
 ---
 
 ## TUI Keybindings
