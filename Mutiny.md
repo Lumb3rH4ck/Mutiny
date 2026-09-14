@@ -145,6 +145,7 @@ subsystem they tune is wired up at startup.
 | Full Shanty | on / off — swaps to the long `sea-shanty-full.mp3` | `(restart)` — also cut when the loading screen ends |
 | Max Download Rate / Max Upload Rate | unlimited → 1 MB/s → 20 MB/s → 50 MB/s → 100 MB/s | Yes — global rate limit |
 | Browser User-Agent | `chromium` → `firefox` — the UA sent on http(s) URL downloads (hosts like vimm.net 400 library/bot UAs) | Yes — applied to new URL downloads; a custom `user_agent` config still wins |
+| VPN Interface | `surfshark_wg` → `wg0` → `wg1` → `tun0` → `tun1` → `nordlynx` → `proton0` → `tailscale0` → `mullvad` | `(restart)` — VPN monitor is created at startup |
 | VPN Panic Guard | on / off | Yes — pauses/releases the panic handler |
 | Scan Files On The Fly | on / off | Yes — shared config consulted per file |
 | Scan On Completion | on / off | Yes |
@@ -407,7 +408,7 @@ Config lookup order: `--config` flag → `./config.yaml` → `~/.config/mutiny/c
 | `api_token` | `` (off) | Bearer token required for state-changing `/api/*` requests |
 | `trusted_tool_paths` | `false` | Resolve host scan tools (`clamscan`/`yara`/`file`/`bsdtar`) at `/usr/bin`, `/bin`, `/usr/local/bin` instead of PATH |
 | `panic_enabled` | `true` | Pause all downloads when the VPN drops |
-| `vpn_interface` | `surfshark_wg` | Interface the VPN monitor watches |
+| `vpn_interface` | `surfshark_wg` | Interface the VPN monitor watches. Changeable in-app from Settings → SECURITY OPTIONS → VPN Interface (cycles: `surfshark_wg`, `wg0`, `wg1`, `tun0`, `tun1`, `nordlynx`, `proton0`, `tailscale0`, `mullvad`). Restart required. |
 | `vpn_bind_interface` | `` | Pin torrent sockets to this device (`SO_BINDTODEVICE`); unset = no binding. Must match `vpn_interface` |
 | `vpn_check_interval` | `5s` | VPN liveness poll interval |
 | `listen_port` | `42069` | BitTorrent listen port |

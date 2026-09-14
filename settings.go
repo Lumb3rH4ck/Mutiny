@@ -38,6 +38,7 @@ var settingRows = []settingRow{
 	{key: "user_agent_browser", label: "Browser User-Agent"},
 	{key: "seed_completed", label: "Re-Seed Completed Downloads"},
 	// SECURITY OPTIONS
+	{key: "vpn_interface", label: "VPN Interface", restart: true},
 	{key: "panic_enabled", label: "VPN Panic Guard"},
 	{key: "scan_on_the_fly", label: "Scan Files On The Fly"},
 	{key: "scan_on_completion", label: "Scan On Completion"},
@@ -63,7 +64,7 @@ type settingsSection struct {
 var settingsSections = []settingsSection{
 	{"CUSTOMISATION", []string{"theme", "notifications", "loading_song", "full_shanty"}},
 	{"DOWNLOAD OPTIONS", []string{"max_download_rate", "max_upload_rate", "wait_for_selection", "user_agent_browser", "seed_completed"}},
-	{"SECURITY OPTIONS", []string{"panic_enabled", "scan_on_the_fly", "scan_on_completion", "hash_reputation", "dht_enabled"}},
+	{"SECURITY OPTIONS", []string{"vpn_interface", "panic_enabled", "scan_on_the_fly", "scan_on_completion", "hash_reputation", "dht_enabled"}},
 	{"NETWORK OPTIONS", []string{"web_serve", "web_lan", "web_tailscale"}},
 	{"UPDATE OPTIONS", []string{"auto_update", "update_interval"}},
 }
@@ -128,6 +129,39 @@ func settingsWindowStart(idx, per int) int {
 		start = D - per
 	}
 	return start
+}
+
+// vpnInterfaceOptions are the selectable VPN interfaces in the settings
+// picker, in cycle order. Covers the most common VPN clients and generic
+// tunnel names.
+var vpnInterfaceOptions = []string{
+	"surfshark_wg",
+	"wg0",
+	"wg1",
+	"tun0",
+	"tun1",
+	"nordlynx",
+	"proton0",
+	"tailscale0",
+	"mullvad",
+}
+
+// cycleVPNInterface advances the VPN interface to the next option and
+// persists it. The change takes effect on restart (the VPN monitor is created
+// at startup).
+func (m model) cycleVPNInterface() (model, string) {
+	cur := m.cfg.VPNInterface
+	idx := 0
+	for i, name := range vpnInterfaceOptions {
+		if name == cur {
+			idx = i
+			break
+		}
+	}
+	next := vpnInterfaceOptions[(idx+1)%len(vpnInterfaceOptions)]
+	m.cfg.VPNInterface = next
+	m.saveSetting("vpn_interface", next)
+	return m, next
 }
 
 // updateIntervalOptions are the selectable auto-update cadences (min 1h).
@@ -227,6 +261,8 @@ func (m model) settingsValue(key string) string {
 			return "unlimited"
 		}
 		return formatRate(c.MaxUploadRate)
+	case "vpn_interface":
+		return c.VPNInterface
 	case "panic_enabled":
 		return boolStr(c.PanicEnabled)
 	case "scan_on_the_fly":
@@ -348,6 +384,9 @@ func (m model) cycleSettingByKey(key string) (model, string, error) {
 		return nm, v, nil
 	case "user_agent_browser":
 		nm, v := m.cycleBrowser()
+		return nm, v, nil
+	case "vpn_interface":
+		nm, v := m.cycleVPNInterface()
 		return nm, v, nil
 	case "web_serve":
 		next := !m.cfg.WebServe
