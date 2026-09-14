@@ -240,48 +240,59 @@ function app() {
                 }
                 return;
             }
-            if (this.addOpen) {
-                if (e.key === 'Escape') { e.preventDefault(); if (this.addReferrer) this.addReferrer = false; else this.closeAdd(); }
-                else if (e.key === 'Enter') { e.preventDefault(); this.addSubmit(); }
-                return;
-            }
-            if (this.settingsOpen) {
-                switch (e.key) {
-                    case 'Escape': case 'q': case 'Q': this.settingsOpen = false; break;
-                    case 'ArrowDown': case 'j': case 'J': this.settingsMove(1); break;
-                    case 'ArrowUp': case 'k': case 'K': this.settingsMove(-1); break;
-                    case 'Enter': case ' ': case 'l': case 'r': this.cycleSettingAtCursor(); break;
-                }
+            if (this.addOpen) { this.onAddKey(e); return; }
+            if (this.settingsOpen) { this.onSettingsKey(e); return; }
+            if (this.picking) { this.onPickerKey(e); return; }
+            if (this.page === 'downloads' && this.filesOpen) { this.onFilesKey(e); return; }
+            this.onMainKey(e);
+        },
+
+        onAddKey(e) {
+            if (e.key === 'Escape') {
                 e.preventDefault();
-                return;
-            }
-            if (this.picking) {
-                switch (e.key) {
-                    case 'Escape': this.closePicker(); break;
-                    case 'Enter': this.confirmSelection(); break;
-                    case ' ': this.toggleFileAtCursor(); break;
-                    case 'l': case 'L': this.takeAll(); break;
-                    case 'u': case 'U': this.takeNone(); break;
-                    case 'j': case 'J': case 'ArrowDown': this.pickMove(1); break;
-                    case 'k': case 'K': case 'ArrowUp': this.pickMove(-1); break;
-                }
+                if (this.addReferrer) this.addReferrer = false;
+                else this.closeAdd();
+            } else if (e.key === 'Enter') {
                 e.preventDefault();
-                return;
+                this.addSubmit();
             }
-            if (this.page === 'downloads' && this.filesOpen) {
-                if (e.key === 'Enter' || e.key === 'Escape' || e.key === 'q' || e.key === 'Q') {
-                    this.filesOpen = false;
-                    this.filesCursor = 0;
-                    e.preventDefault();
-                    return;
-                }
-                if (e.key === 'ArrowDown' || e.key === 'j' || e.key === 'J' ||
-                    e.key === 'ArrowUp' || e.key === 'k' || e.key === 'K') {
-                    this.filesScroll(e.key === 'ArrowUp' || e.key === 'k' || e.key === 'K' ? -1 : 1);
-                    e.preventDefault();
-                    return;
-                }
+        },
+
+        onSettingsKey(e) {
+            switch (e.key) {
+                case 'Escape': case 'q': case 'Q': this.settingsOpen = false; break;
+                case 'ArrowDown': case 'j': case 'J': this.settingsMove(1); break;
+                case 'ArrowUp': case 'k': case 'K': this.settingsMove(-1); break;
+                case 'Enter': case ' ': case 'l': case 'r': this.cycleSettingAtCursor(); break;
             }
+            e.preventDefault();
+        },
+
+        onPickerKey(e) {
+            switch (e.key) {
+                case 'Escape': this.closePicker(); break;
+                case 'Enter': this.confirmSelection(); break;
+                case ' ': this.toggleFileAtCursor(); break;
+                case 'l': case 'L': this.takeAll(); break;
+                case 'u': case 'U': this.takeNone(); break;
+                case 'j': case 'J': case 'ArrowDown': this.pickMove(1); break;
+                case 'k': case 'K': case 'ArrowUp': this.pickMove(-1); break;
+            }
+            e.preventDefault();
+        },
+
+        onFilesKey(e) {
+            if (e.key === 'Enter' || e.key === 'Escape' || e.key === 'q' || e.key === 'Q') {
+                this.filesOpen = false;
+                this.filesCursor = 0;
+            } else if (e.key === 'ArrowDown' || e.key === 'j' || e.key === 'J' ||
+                       e.key === 'ArrowUp' || e.key === 'k' || e.key === 'K') {
+                this.filesScroll(e.key === 'ArrowUp' || e.key === 'k' || e.key === 'K' ? -1 : 1);
+            }
+            e.preventDefault();
+        },
+
+        onMainKey(e) {
             switch (e.key) {
                 case 'ArrowDown':
                     if (this.page === 'history' && this.historyFocus === 'report') this.reportScroll(1);

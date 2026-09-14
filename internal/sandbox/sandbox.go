@@ -1,3 +1,5 @@
+//go:build linux
+
 package sandbox
 
 import (
@@ -12,68 +14,6 @@ import (
 	"syscall"
 	"time"
 )
-
-// BehaviorReport captures the observable behavior of a sample executed inside
-// an isolated throwaway container. The verdict is determined by heuristics
-// applied to the captured syscalls.
-type BehaviorReport struct {
-	FileOps           []FileOp      `json:"file_ops"`
-	ExecAttempts      []ExecAttempt `json:"exec_attempts"`
-	NetAttempts       []NetAttempt  `json:"net_attempts"`
-	VoidVerdict       string        `json:"-"` // raw heuristic label
-	Verdict           string        `json:"verdict"`
-	Summary           string        `json:"summary"`
-	RawTrace          string        `json:"raw_trace"`
-	Error             string        `json:"error,omitempty"`
-	Executed          bool          `json:"executed"`
-	NotExecutedReason string        `json:"not_executed_reason,omitempty"`
-}
-
-// FileOp records a single file-related syscall captured by strace.
-type FileOp struct {
-	Syscall string `json:"syscall"` // open, openat, creat, unlink, rename, chmod, chown, write, read, mkdir, rmdir
-	Path    string `json:"path"`
-	Mode    string `json:"mode,omitempty"` // permissions string for chmod/chown, flags for open
-}
-
-// ExecAttempt records a process-creation syscall.
-type ExecAttempt struct {
-	Path    string   `json:"path"`
-	Args    []string `json:"args,omitempty"`
-	Success bool     `json:"success"` // true when the syscall returned >= 0
-	Errno   string   `json:"errno,omitempty"`
-}
-
-// NetAttempt records a network-related syscall (all fail with ENETUNREACH
-// since the container has --network=none, but the attempt itself is the signal).
-type NetAttempt struct {
-	Syscall string `json:"syscall"` // socket, connect, sendto, recvfrom, bind, listen
-	Addr    string `json:"addr"`
-	Port    string `json:"port,omitempty"`
-}
-
-// Sandbox manages throwaway container execution for behavior analysis.
-type Sandbox struct {
-	// Container is the Docker image to use. Reuses the mutiny-scan image
-	// which already has strace available.
-	Container string
-	// Timeout is the maximum runtime per sample. The container is killed
-	// after this duration.
-	Timeout time.Duration
-	// MemoryLimit caps the sandbox container's RAM (docker --memory, e.g.
-	// "1g"). Empty disables the limit. The container otherwise inherits the
-	// host's memory, so a hostile sample could exhaust RAM; tmpfs mounts in
-	// the container (file ops the sample performs in /tmp) are also bounded
-	// by this limit.
-	MemoryLimit string
-	// PidsLimit caps how many processes/threads the sample can spawn (docker
-	// --pids-limit). Zero disables the limit. Bounds fork-bomb behaviour
-	// inside the sandbox.
-	PidsLimit int
-	// CPULimit caps how much CPU the sample can burn (docker --cpus, e.g.
-	// "1"). Empty disables the limit.
-	CPULimit string
-}
 
 // New creates a Sandbox. container is the Docker image name (e.g. "mutiny-scan").
 func New(container string, timeout time.Duration) *Sandbox {
@@ -516,116 +456,136 @@ func extractAddr(args string) (addr, port string) {
 	return addr, port
 }
 
-// evaluateBehavior applies heuristic rules to the parsed behavior and returns
-// a verdict ("clean", "suspicious", "malicious") and a human summary.
-func evaluateBehavior(report BehaviorReport) (verdict, summary string) {
-	nFileOps := len(report.FileOps)
-	nExecs := len(report.ExecAttempts)
-	nNet := len(report.NetAttempts)
+// behaviorSignals holds the extracted scoring signals from a behavior report.
+type behaviorSignals struct {
+	hasShellExec     bool
+	hasFileWrite     bool
+	writesOutsideTmp bool
+	hasChmod         bool
+	hasChown         bool
+	hasMount         bool
+	nNet             int
+	nExecs           int
+	indicators       []string
+}
 
-	// Count suspicious indicators.
-	var indicators []string
+func isShellBinary(base string) bool {
+	switch base {
+	case "sh", "bash", "dash", "zsh", "cmd.exe", "powershell.exe", "pwsh",
+		"python", "python3", "perl", "ruby":
+		return true
+	}
+	return strings.HasSuffix(base, ".sh")
+}
 
-	// Check for shell exec + file write (classic malware pattern).
-	hasShellExec := false
-	hasFileWrite := false
-	hasChmod := false
-	hasChown := false
-	hasMount := false
-	writesOutsideTmp := false
+func extractSignals(report BehaviorReport) behaviorSignals {
+	var s behaviorSignals
+	s.nNet = len(report.NetAttempts)
+	s.nExecs = len(report.ExecAttempts)
 
 	for _, e := range report.ExecAttempts {
-		base := filepath.Base(e.Path)
-		if base == "sh" || base == "bash" || base == "dash" || base == "zsh" ||
-			base == "cmd.exe" || base == "powershell.exe" || base == "pwsh" ||
-			base == "python" || base == "python3" || base == "perl" || base == "ruby" ||
-			strings.HasSuffix(base, ".sh") {
-			hasShellExec = true
+		if isShellBinary(filepath.Base(e.Path)) {
+			s.hasShellExec = true
 		}
 	}
 
 	for _, f := range report.FileOps {
 		switch f.Syscall {
 		case "write", "pwrite64", "writev", "creat":
-			hasFileWrite = true
+			s.hasFileWrite = true
 			if !strings.HasPrefix(f.Path, "/tmp") && !strings.HasPrefix(f.Path, "/run") {
-				writesOutsideTmp = true
+				s.writesOutsideTmp = true
 			}
 		case "chmod", "fchmod", "fchmodat":
-			hasChmod = true
-			// Check for dangerous permissions (0777, 0755 on sensitive files).
+			s.hasChmod = true
 			if f.Mode == "0777" || f.Mode == "4095" || f.Mode == "S_ISUID|0777" {
-				indicators = append(indicators, fmt.Sprintf("dangerous chmod %s on %s", f.Mode, f.Path))
+				s.indicators = append(s.indicators, fmt.Sprintf("dangerous chmod %s on %s", f.Mode, f.Path))
 			}
 		case "chown", "fchown", "fchownat":
-			hasChown = true
-			indicators = append(indicators, fmt.Sprintf("chown on %s", f.Path))
+			s.hasChown = true
+			s.indicators = append(s.indicators, fmt.Sprintf("chown on %s", f.Path))
 		case "mount", "umount2":
-			hasMount = true
-			indicators = append(indicators, fmt.Sprintf("mount/umount syscall: %s", f.Syscall))
+			s.hasMount = true
+			s.indicators = append(s.indicators, fmt.Sprintf("mount/umount syscall: %s", f.Syscall))
 		}
 	}
 
 	for _, n := range report.NetAttempts {
 		if n.Syscall == "connect" || n.Syscall == "sendto" {
-			indicators = append(indicators, fmt.Sprintf("network %s to %s:%s", n.Syscall, n.Addr, n.Port))
+			s.indicators = append(s.indicators, fmt.Sprintf("network %s to %s:%s", n.Syscall, n.Addr, n.Port))
 		}
 	}
 
-	// Scoring: malicious if multiple high-confidence indicators line up.
-	score := 0
-	if hasShellExec && hasFileWrite {
-		score += 3
-		indicators = append(indicators, "shell exec + file write pattern")
-	}
-	if writesOutsideTmp {
-		score += 2
-		indicators = append(indicators, "file writes outside /tmp")
-	}
-	if hasChmod {
-		score += 1
-	}
-	if hasChown {
-		score += 2
-	}
-	if hasMount {
-		score += 3
-	}
-	if nNet > 3 {
-		score += 2
-		indicators = append(indicators, fmt.Sprintf("%d network attempts", nNet))
-	} else if nNet > 0 {
-		score += 1
-	}
-	if nExecs > 5 {
-		score += 2
-		indicators = append(indicators, fmt.Sprintf("%d exec attempts", nExecs))
-	} else if nExecs > 1 {
-		score += 1
-	}
+	return s
+}
 
+func computeScore(s *behaviorSignals) int {
+	score := 0
+	if s.hasShellExec && s.hasFileWrite {
+		score += 3
+		s.indicators = append(s.indicators, "shell exec + file write pattern")
+	}
+	if s.writesOutsideTmp {
+		score += 2
+		s.indicators = append(s.indicators, "file writes outside /tmp")
+	}
+	if s.hasChmod {
+		score += 1
+	}
+	if s.hasChown {
+		score += 2
+	}
+	if s.hasMount {
+		score += 3
+	}
+	switch {
+	case s.nNet > 3:
+		score += 2
+		s.indicators = append(s.indicators, fmt.Sprintf("%d network attempts", s.nNet))
+	case s.nNet > 0:
+		score += 1
+	}
+	switch {
+	case s.nExecs > 5:
+		score += 2
+		s.indicators = append(s.indicators, fmt.Sprintf("%d exec attempts", s.nExecs))
+	case s.nExecs > 1:
+		score += 1
+	}
+	return score
+}
+
+func behaviorVerdict(score int) string {
 	switch {
 	case score >= 5:
-		verdict = "malicious"
+		return "malicious"
 	case score >= 2:
-		verdict = "suspicious"
+		return "suspicious"
 	default:
-		verdict = "clean"
+		return "clean"
 	}
+}
 
-	// Build summary.
+// evaluateBehavior applies heuristic rules to the parsed behavior and returns
+// a verdict ("clean", "suspicious", "malicious") and a human summary.
+func evaluateBehavior(report BehaviorReport) (verdict, summary string) {
+	s := extractSignals(report)
+	score := computeScore(&s)
+	verdict = behaviorVerdict(score)
+
+	nFileOps := len(report.FileOps)
 	var parts []string
 	if nFileOps > 0 {
 		parts = append(parts, fmt.Sprintf("%d file ops", nFileOps))
 	}
-	if nExecs > 0 {
-		parts = append(parts, fmt.Sprintf("%d exec", nExecs))
+	if s.nExecs > 0 {
+		parts = append(parts, fmt.Sprintf("%d exec", s.nExecs))
 	}
-	if nNet > 0 {
-		parts = append(parts, fmt.Sprintf("%d net attempts", nNet))
+	if s.nNet > 0 {
+		parts = append(parts, fmt.Sprintf("%d net attempts", s.nNet))
 	}
-	if len(indicators) > 0 {
-		parts = append(parts, strings.Join(indicators[:min(3, len(indicators))], "; "))
+	if len(s.indicators) > 0 {
+		parts = append(parts, strings.Join(s.indicators[:min(3, len(s.indicators))], "; "))
 	}
 	if len(parts) == 0 {
 		return "clean", "no suspicious behavior"
