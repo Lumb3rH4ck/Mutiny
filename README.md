@@ -4,6 +4,12 @@
 
 ![Mutiny TUI — Main view](assets/mutiny-tui-main.png)
 
+![Mutiny TUI — Downloads](assets/mutiny-tui-downloads.png)
+
+![Mutiny TUI — Previous Downloads](assets/mutiny-tui-previous.png)
+
+![Mutiny TUI — Scan report](assets/mutiny-tui-scan.png)
+
 [![Release](https://img.shields.io/github/v/release/Lumb3rH4ck/mutiny?style=flat-square)](https://github.com/Lumb3rH4ck/mutiny/releases)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows-green?style=flat-square)]()
