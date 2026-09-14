@@ -67,6 +67,14 @@ omarchy pkg aur add mutiny-bin
 paru -S mutiny-bin
 ```
 
+**Omarchy shell widget** (shows active downloads in the bar):
+```bash
+omarchy pkg aur add omarchy-mutiny-status
+# or
+paru -S omarchy-mutiny-status
+```
+Then add it to the bar: `omarchy bar add mutiny.status --section right`
+
 **One-line installer**:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Lumb3rH4ck/mutiny/main/install.sh | sh
@@ -164,6 +172,27 @@ mutiny -no-web-tailscale                      # Disable Tailscale serving
 | `g` | Refresh |
 | `space` | Panic / resume |
 | `q` / `ctrl+c` | Quit |
+
+---
+
+## Omarchy Shell Widget
+
+The `mutiny.status` widget shows active download and threat counts in the Omarchy bar. It polls the Mutiny API every 5s and displays an anchor icon (⚓) normally, or a bolt (⚡) when threats are detected.
+
+**Install**:
+```bash
+paru -S omarchy-mutiny-status     # AUR
+# or copy manually:
+mkdir -p ~/.config/omarchy/plugins/mutiny.status
+cp -r plugin/mutiny.status/* ~/.config/omarchy/plugins/mutiny.status/
+```
+
+**Add to bar**:
+```bash
+omarchy bar add mutiny.status --section right
+```
+
+The widget is visible only when Mutiny is running and has activity. Click it to open the web UI.
 
 ---
 

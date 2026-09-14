@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "mutiny.status",
+  "name": "Mutiny Status",
+  "version": "1.0.0",
+  "author": "Lumb3rH4ck",
+  "description": "Shows active Mutiny downloads and threat counts",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "MutinyStatus.qml"
+  },
+  "barWidget": {
+    "displayName": "Mutiny",
+    "description": "Active downloads, scanning, and threat counts from Mutiny",
+    "category": "Network",
+    "allowMultiple": false
+  }
+}

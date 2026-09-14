@@ -43,6 +43,7 @@ archives:
       - build/mutiny-tui.desktop
       - build/mutiny.service
       - build/icons/*
+      - plugin/**/*
   - id: windows
     builds: [mutiny_windows]
     name_template: "{{ .ProjectName }}_{{ .Version }}_windows_{{ .Arch }}"
@@ -61,3 +62,69 @@ release:
     name: mutiny
   draft: false
   prerelease: auto
+
+aurs:
+  - name: mutiny-bin
+    homepage: "https://github.com/Lumb3rH4ck/mutiny"
+    description: "Local BitTorrent client with malware scanning — ClamAV + YARA, VPN-gated, TUI + web UI"
+    maintainers:
+      - "Lumb3rH4ck <lumb3r@proton.me>"
+    license: "GPL-3.0"
+    private_key: "{{ .Env.AUR_PRIVATE_KEY }}"
+    git_url: "ssh://aur@aur.archlinux.org/mutiny-bin.git"
+    package: |
+      # Maintainer: Lumb3rH4ck <lumb3r@proton.me>
+      pkgname=mutiny-bin
+      pkgver={{ .Version }}
+      pkgrel=1
+      pkgdesc="Local BitTorrent client with malware scanning — ClamAV + YARA, VPN-gated, TUI + web UI"
+      arch=('x86_64' 'aarch64')
+      url="https://github.com/Lumb3rH4ck/mutiny"
+      license=('GPL-3.0')
+      depends=('clamav')
+      optdepends=('docker: containerized scanning sandbox' 'yara: YARA rule engine')
+      conflicts=('mutiny')
+      provides=('mutiny')
+      source_x86_64=("https://github.com/Lumb3rH4ck/mutiny/releases/download/v${pkgver}/mutiny_${pkgver}_linux_x86_64.tar.gz")
+      source_aarch64=("https://github.com/Lumb3rH4ck/mutiny/releases/download/v${pkgver}/mutiny_${pkgver}_linux_aarch64.tar.gz")
+      sha256sums_x86_64=('SKIP')
+      sha256sums_aarch64=('SKIP')
+
+      package() {
+        cd "$srcdir/mutiny_${pkgver}_linux_${CARCH}"
+        install -Dm755 mutiny "${pkgdir}/usr/bin/mutiny"
+        install -Dm644 build/mutiny.desktop "${pkgdir}/usr/share/applications/mutiny.desktop"
+        install -Dm644 build/mutiny-tui.desktop "${pkgdir}/usr/share/applications/mutiny-tui.desktop"
+        install -Dm644 build/icons/mutiny.png "${pkgdir}/usr/share/icons/hicolor/256x256/apps/mutiny.png"
+        install -Dm644 build/icons/mutiny-48.png "${pkgdir}/usr/share/icons/hicolor/48x48/apps/mutiny.png"
+        install -Dm644 build/icons/mutiny-skull.png "${pkgdir}/usr/share/icons/hicolor/256x256/apps/mutiny-skull.png"
+        install -Dm644 build/mutiny.service "${pkgdir}/usr/lib/systemd/user/mutiny.service"
+        install -Dm644 plugin/mutiny.status/manifest.json "${pkgdir}/usr/share/omarchy/plugins/mutiny.status/manifest.json"
+        install -Dm644 plugin/mutiny.status/MutinyStatus.qml "${pkgdir}/usr/share/omarchy/plugins/mutiny.status/MutinyStatus.qml"
+      }
+  - name: omarchy-mutiny-status
+    homepage: "https://github.com/Lumb3rH4ck/mutiny"
+    description: "Omarchy shell widget for Mutiny — shows active downloads and threat counts in the bar"
+    maintainers:
+      - "Lumb3rH4ck <lumb3r@proton.me>"
+    license: "GPL-3.0"
+    private_key: "{{ .Env.AUR_PRIVATE_KEY }}"
+    git_url: "ssh://aur@aur.archlinux.org/omarchy-mutiny-status.git"
+    package: |
+      # Maintainer: Lumb3rH4ck <lumb3r@proton.me>
+      pkgname=omarchy-mutiny-status
+      pkgver={{ .Version }}
+      pkgrel=1
+      pkgdesc="Omarchy shell widget for Mutiny — shows active downloads and threat counts in the bar"
+      arch=('any')
+      url="https://github.com/Lumb3rH4ck/mutiny"
+      license=('GPL-3.0')
+      depends=('mutiny-bin')
+      source=("https://github.com/Lumb3rH4ck/mutiny/releases/download/v${pkgver}/mutiny_${pkgver}_linux_amd64.tar.gz")
+      sha256sums=('SKIP')
+
+      package() {
+        cd "$srcdir/mutiny_${pkgver}_linux_amd64"
+        install -Dm644 plugin/mutiny.status/manifest.json "${pkgdir}/usr/share/omarchy/plugins/mutiny.status/manifest.json"
+        install -Dm644 plugin/mutiny.status/MutinyStatus.qml "${pkgdir}/usr/share/omarchy/plugins/mutiny.status/MutinyStatus.qml"
+      }
