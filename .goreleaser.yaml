@@ -44,16 +44,13 @@ archives:
       - LICENSE*
       - README*
 
+sboms:
+  - id: spdx
+    artifacts: archive
+
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Version }}_sha256sums.txt"
   algorithm: sha256
-
-sbom:
-  - id: spdx
-    artifacts: archive
-    documents:
-      - "${artifact}.spdx.json"
-    args: ["--spdx", "--output", "${artifact}.spdx.json"]
 
 signs:
   - cmd: cosign
@@ -128,39 +125,23 @@ winget:
       name: mutiny
       token: "{{ .Env.GITHUB_TOKEN }}"
       branch: main
-      path: manifests/m/Mumb3rH4ck/Mutiny
-    package:
-      identifier: Lumb3rH4ck.Mutiny
-      publisher: Lumb3rH4ck
-      license: GPL-3.0
-      copyright: Copyright 2026 Lumb3rH4ck
-      release_notes_url: https://github.com/Lumb3rH4ck/mutiny/releases/tag/{{ .Tag }}
-      minimum_os_version: "10.0.0.0"
-      product_code: "{{ .Version }}"
-    installer:
-      architecture:
-        - x64
-      installer_url: "https://github.com/Lumb3rH4ck/mutiny/releases/download/{{ .Tag }}/mutiny_{{ .Version }}_windows_amd64.zip"
-      type: zip
-      nested_installer_type: portable
-      nested_installer_files:
-        relative_file_path: "mutiny.exe"
+      path: manifests/m/Lumb3rH4ck/Mutiny
+    dependencies:
+      - PackageIdentifier: ClamAV.ClamAV
 
 chocolatey:
-  - name: mutiny
-    title: Mutiny
-    authors: Lumb3rH4ck
-    project_url: https://github.com/Lumb3rH4ck/mutiny
-    license_url: https://github.com/Lumb3rH4ck/mutiny/blob/main/LICENSE
-    project_source_url: https://github.com/Lumb3rH4ck/mutiny
-    docs_url: https://github.com/Lumb3rH4ck/mutiny/blob/main/Mutiny.md
-    bug_tracker_url: https://github.com/Lumb3rH4ck/mutiny/issues
-    summary: Local BitTorrent client with malware scanning
-    description: |
-      Local BitTorrent client with a TUI + web UI, gated behind a VPN,
-      with dual-engine (ClamAV + YARA) per-file malware scanning and
-      staged delivery of completed downloads.
-    release_notes: "https://github.com/Lumb3rH4ck/mutiny/releases/tag/{{ .Tag }}"
-    url_template: "https://github.com/Lumb3rH4ck/mutiny/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-    builds: [mutiny]
-    skip_publish: false
+  name: mutiny
+  title: Mutiny
+  authors: Lumb3rH4ck
+  project_url: https://github.com/Lumb3rH4ck/mutiny
+  license_url: https://github.com/Lumb3rH4ck/mutiny/blob/main/LICENSE
+  project_source_url: https://github.com/Lumb3rH4ck/mutiny
+  docs_url: https://github.com/Lumb3rH4ck/mutiny/blob/main/Mutiny.md
+  bug_tracker_url: https://github.com/Lumb3rH4ck/mutiny/issues
+  summary: Local BitTorrent client with malware scanning
+  description: |
+    Local BitTorrent client with a TUI + web UI, gated behind a VPN,
+    with dual-engine (ClamAV + YARA) per-file malware scanning and
+    staged delivery of completed downloads.
+  release_notes: "https://github.com/Lumb3rH4ck/mutiny/releases/tag/{{ .Tag }}"
+  url_template: "https://github.com/Lumb3rH4ck/mutiny/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
