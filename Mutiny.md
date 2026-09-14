@@ -624,6 +624,34 @@ Set `mb_api_key` in config if you deliver large multi-file torrents regularly or
 
 ---
 
+## Release & Packaging
+
+### GitHub Secrets
+
+The release workflow (`.github/workflows/release.yml`) requires these secrets in the GitHub repo settings (`Settings → Secrets and variables → Actions`):
+
+| Secret | Purpose | How to generate |
+|--------|---------|-----------------|
+| `GITHUB_TOKEN` | Auto-provided by GitHub — publishes the Release, creates AUR/winget/chocolatey PRs | Nothing to do |
+| `AUR_PRIVATE_KEY` | Pushes the PKGBUILD to the `mutiny-bin` AUR repo | Generate an SSH keypair: `ssh-keygen -t ed25519 -C "aur@mutiny" -f ~/.ssh/aur_mutiny -N ""`. Add the **private** key as the `AUR_PRIVATE_KEY` secret. Add the **public** key (`~/.ssh/aur_mutiny.pub`) as an AUR account SSH key at https://aur.archlinux.org/account/**Lumb3rH4ck**/settings/ |
+
+### Releasing
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+GitHub Actions runs GoReleaser → publishes to GitHub Releases, AUR, winget, chocolatey.
+
+### First-time package manager setup
+
+- **AUR**: The first release auto-creates the `mutiny-bin` AUR repo via SSH. Ensure the AUR account has the public key added.
+- **winget**: GoReleaser auto-PRs to `microsoft/winget-pkgs`. First PR needs manual review/approval by Microsoft maintainers.
+- **chocolatey**: GoReleaser pushes to chocolatey.org. First submission needs manual approval by chocolatey moderators.
+
+---
+
 ## See Also
 
 - [[Security-Hardening]]
