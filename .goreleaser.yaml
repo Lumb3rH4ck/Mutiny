@@ -7,41 +7,48 @@ before:
     - go mod tidy
 
 builds:
-  - id: mutiny
+  - id: mutiny_linux
     binary: mutiny
     main: .
     env:
       - CGO_ENABLED=0
     goos:
       - linux
-      - windows
     goarch:
       - amd64
       - arm64
-    ignore:
-      - goos: windows
-        goarch: arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+  - id: mutiny_windows
+    binary: mutiny
+    main: .
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+    goarch:
+      - amd64
     ldflags:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
 
 archives:
   - id: linux
-    builds: [mutiny]
+    builds: [mutiny_linux]
     name_template: "{{ .ProjectName }}_{{ .Version }}_linux_{{ .Arch }}"
     format: tar.gz
     files:
-      - LICENSE*
+      - LICENSE
       - README*
       - build/mutiny.desktop
       - build/mutiny-tui.desktop
       - build/mutiny.service
       - build/icons/*
   - id: windows
-    builds: [mutiny]
+    builds: [mutiny_windows]
     name_template: "{{ .ProjectName }}_{{ .Version }}_windows_{{ .Arch }}"
     format: zip
     files:
-      - LICENSE*
+      - LICENSE
       - README*
 
 checksum:
