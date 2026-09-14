@@ -94,8 +94,12 @@ case "${1:-build}" in
     scan-logs)
         docker compose -f container/docker-compose.yml logs -f
         ;;
+    demo)
+        echo "Seeding demo data for screenshots..."
+        ./demo-seed.sh
+        ;;
     *)
-        echo "Usage: ./dev.sh {build|rebuild|install|run|tui|watch|deps|clean|scan-build|scan-up|scan-down|scan-logs}"
+        echo "Usage: ./dev.sh {build|rebuild|install|run|tui|watch|deps|clean|scan-build|scan-up|scan-down|scan-logs|demo}"
         exit 1
         ;;
 esac
