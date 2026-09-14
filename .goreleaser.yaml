@@ -94,13 +94,13 @@ aurs:
       optdepends=('docker: containerized scanning sandbox' 'yara: YARA rule engine')
       conflicts=('mutiny')
       provides=('mutiny')
-      source_x86_64=("${pkgname}_${pkgver}::https://github.com/Lumb3rH4ck/mutiny/releases/download/v${pkgver}/${pkgname}_${pkgver}_linux_x86_64.tar.gz")
-      source_aarch64=("${pkgname}_${pkgver}::https://github.com/Lumb3rH4ck/mutiny/releases/download/v${pkgver}/${pkgname}_${pkgver}_linux_aarch64.tar.gz")
-      sha256sums_x86_64=('${SHA256_X86_64}')
-      sha256sums_aarch64=('${SHA256_AARCH64}')
+      source_x86_64=("https://github.com/Lumb3rH4ck/mutiny/releases/download/v${pkgver}/mutiny_${pkgver}_linux_x86_64.tar.gz")
+      source_aarch64=("https://github.com/Lumb3rH4ck/mutiny/releases/download/v${pkgver}/mutiny_${pkgver}_linux_aarch64.tar.gz")
+      sha256sums_x86_64=('SKIP')
+      sha256sums_aarch64=('SKIP')
 
       package() {
-        cd "$srcdir/${pkgname}_${pkgver}"
+        cd "$srcdir/mutiny_${pkgver}_linux_${CARCH}"
         install -Dm755 mutiny "${pkgdir}/usr/bin/mutiny"
         install -Dm644 build/mutiny.desktop "${pkgdir}/usr/share/applications/mutiny.desktop"
         install -Dm644 build/mutiny-tui.desktop "${pkgdir}/usr/share/applications/mutiny-tui.desktop"
