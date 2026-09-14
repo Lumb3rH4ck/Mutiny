@@ -642,20 +642,24 @@ type initialAdd struct {
 
 
 
+var version = "dev"
+
 func main() {
 	// Downloads are unvetted until scanned: create every file (downloads,
 	// staged copies, reports, state) with the most private perms possible
 	// (0666 & ~077 = 0600, dirs 0700) instead of anacrolix's world-readable
 	// 0666 default. Delivered-clean files are relaxed back to 0644 in the
 	// delivery pass once a verdict exists.
-	syscall.Umask(0o077)
+	setUmask()
 
 	var mode string
 	var configPath string
 	var referrer string
+	var printVersion bool
 	flag.StringVar(&mode, "mode", "server", "run mode: server | tui")
 	flag.StringVar(&configPath, "config", "", "path to config file (default: ./config.yaml, then ~/.config/mutiny/config.yaml)")
 	flag.StringVar(&referrer, "referrer", "", "Referer header to send with the positional http(s) URL download(s)")
+	flag.BoolVar(&printVersion, "version", false, "print version and exit")
 	// The web UI/API listens on loopback always; these flags disable the extra
 	// binds (LAN / Tailscale) regardless of what web_lan / web_tailscale in the
 	// config say, so a locked-down launch can't accidentally face the network.
@@ -664,6 +668,11 @@ func main() {
 	flag.BoolVar(&noWebLAN, "no-web-lan", false, "serve the web UI/API on loopback only (override web_lan)")
 	flag.BoolVar(&noWebTailscale, "no-web-tailscale", false, "do not serve the web UI/API over Tailscale (override web_tailscale)")
 	flag.Parse()
+
+	if printVersion {
+		fmt.Printf("mutiny %s\n", version)
+		os.Exit(0)
+	}
 
 	// Parse positional args: .torrent files, magnet: URIs and http(s) URLs.
 	var initAdd initialAdd
@@ -1633,7 +1642,7 @@ func main() {
 		}
 	}
 
-	server := api.NewServer(api.ServerOptions{TorrentManager: tm, Scanner: sc, VPNMonitor: vpnMon, Hub: hub, Port: cfg.Port, APIToken: cfg.APIToken, WebRoot: webAssets}).SetListen(cfg.Host, cfg.WebLAN, cfg.WebTailscale)
+	server := api.NewServer(api.ServerOptions{TorrentManager: tm, Scanner: sc, VPNMonitor: vpnMon, Hub: hub, Port: cfg.Port, APIToken: cfg.APIToken, WebRoot: webAssets, Version: version}).SetListen(cfg.Host, cfg.WebLAN, cfg.WebTailscale)
 	server.SetWebServices(buildWebServices(&cfg, configPath, tm, store, sc, vpnMon, rescanTorrent, seedSvc))
 
 	sigCh := make(chan os.Signal, 1)

@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/mutiny -mode server
+ExecStart=@BINDIR@/mutiny -mode server
 WorkingDirectory=%h/Downloads/Mutiny
 Restart=on-failure
 RestartSec=10
@@ -15,8 +15,7 @@ Environment=HOME=%h
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ProtectHome=read-only
-ReadWritePaths=%h/Downloads/Mutiny
+ReadWritePaths=%h/Downloads/Mutiny %h/.config/mutiny
 
 [Install]
 WantedBy=default.target

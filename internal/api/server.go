@@ -27,6 +27,7 @@ type Server struct {
 	vpnMonitor *vpn.Monitor
 	hub        *Hub
 	port       int
+	version    string
 	// apiToken, when non-empty, gates every state-changing API call so a
 	// same-user local process cannot drive mutiny (add torrents, pause, delete,
 	// trigger panic) without it. Empty disables auth. Read-only GETs and the
@@ -66,6 +67,7 @@ type ServerOptions struct {
 	Port           int
 	APIToken       string
 	WebRoot        fs.FS
+	Version        string
 }
 
 func NewServer(opts ServerOptions) *Server {
@@ -73,6 +75,7 @@ func NewServer(opts ServerOptions) *Server {
 		torrentMgr: opts.TorrentManager,
 		scanner:    opts.Scanner,
 		vpnMonitor: opts.VPNMonitor,
+		version:    opts.Version,
 		hub:        opts.Hub,
 		port:       opts.Port,
 		apiToken:   opts.APIToken,
@@ -493,6 +496,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	status := map[string]interface{}{
+		"version":    s.version,
 		"torrents":   len(s.torrentMgr.List()),
 		"vpn":        s.vpnMonitor.Status(),
 		"ws_clients": s.hub.ClientCount(),

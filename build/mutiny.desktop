@@ -2,7 +2,7 @@
 Type=Application
 Name=Mutiny
 Comment=Malware-aware torrent client with auto-scanning and VPN panic
-Exec=/home/lumb3r/.local/bin/mutiny -mode tui %U
+Exec=@BINDIR@/mutiny -mode tui %U
 Icon=mutiny
 Terminal=true
 MimeType=application/x-bittorrent;x-scheme-handler/magnet;
