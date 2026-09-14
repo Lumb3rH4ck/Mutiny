@@ -17,3 +17,11 @@ config.yaml
 .vscode/
 .idea/
 *.swp
+
+# Dev tooling (local only)
+.air.toml
+.pre-commit-config.yaml
+pyproject.toml
+
+# Sample YARA rules (users provide their own)
+rules/*.yar
