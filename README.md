@@ -114,6 +114,67 @@ choco install mutiny
 
 ---
 
+## Uninstallation
+
+### Arch Linux / Omarchy (AUR)
+```bash
+# Remove the main package
+sudo pacman -Rns mutiny-bin
+
+# Remove the widget (if installed)
+sudo pacman -Rns omarchy-mutiny-status
+
+# Remove runtime data (optional — keeps your downloads)
+rm -rf ~/.config/mutiny
+rm -rf ~/.local/share/mutiny
+```
+
+### Linux (install.sh / manual)
+```bash
+# Stop and disable the service
+systemctl --user disable --now mutiny.service
+rm -f ~/.config/systemd/user/mutiny.service
+
+# Remove the binary
+sudo rm -f /usr/local/bin/mutiny
+
+# Remove desktop entries and icons
+rm -f ~/.local/share/applications/mutiny.desktop
+rm -f ~/.local/share/applications/mutiny-tui.desktop
+sudo rm -f /usr/local/share/icons/hicolor/256x256/apps/mutiny.png
+sudo rm -f /usr/local/share/icons/hicolor/48x48/apps/mutiny.png
+sudo gtk-update-icon-cache /usr/local/share/icons/hicolor 2>/dev/null
+
+# Remove runtime data (optional — keeps your downloads)
+rm -rf ~/.config/mutiny
+rm -rf ~/.local/share/mutiny
+
+# Remove downloads and scan state (⚠️ deletes everything)
+rm -rf ~/Downloads/Mutiny
+```
+
+### Windows
+```powershell
+# winget
+winget uninstall Lumb3rH4ck.Mutiny
+
+# chocolatey
+choco uninstall mutiny
+```
+
+Or uninstall from **Settings → Apps → Installed Apps** → Mutiny → Uninstall.
+
+### Clean Up (all platforms)
+```bash
+# Remove VPN panic interface binding (if set)
+sudo ip link del surfshark_wg 2>/dev/null   # only if you created it manually
+
+# Remove UFW rule (if added)
+sudo ufw delete allow from 192.168.68.0/24 to any port 3030 proto tcp
+```
+
+---
+
 ## Quick Start
 
 ```bash
