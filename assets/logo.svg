@@ -1,46 +1,31 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-  <!-- Blue shield background -->
-  <path d="M128 10 L240 50 L240 160 Q240 220 128 250 Q16 220 16 160 L16 50 Z"
-        fill="#1a3a5c" stroke="#2980b9" stroke-width="4"/>
-  <path d="M128 20 L232 56 L232 158 Q232 212 128 242 Q24 212 24 158 L24 56 Z"
-        fill="#0d2b45" stroke="#5dade2" stroke-width="2"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a3a5c"/>
+      <stop offset="100%" stop-color="#0d2b45"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f5c842"/>
+      <stop offset="100%" stop-color="#d4a017"/>
+    </linearGradient>
+  </defs>
 
-  <!-- Ship hull (red) -->
-  <path d="M60 170 L80 190 L176 190 L196 170 L180 170 Q140 185 128 185 Q116 185 76 170 Z"
-        fill="#c0392b" stroke="#922b21" stroke-width="2"/>
-  <path d="M55 175 L75 195 L181 195 L201 175 L190 175 Q140 192 128 192 Q116 192 66 175 Z"
-        fill="#e74c3c"/>
+  <rect width="256" height="256" rx="48" fill="url(#bg)"/>
 
-  <!-- Mast -->
-  <rect x="124" y="70" width="8" height="120" fill="#8b4513" stroke="#5d3a1a" stroke-width="1"/>
+  <circle cx="128" cy="128" r="96" fill="none" stroke="#2980b9" stroke-width="3" opacity="0.4"/>
 
-  <!-- Main sail (red with darker trim) -->
-  <path d="M132 75 L132 155 L200 120 Z"
-        fill="#c0392b" stroke="#922b21" stroke-width="2"/>
-  <path d="M132 75 L132 155 L175 130 Z"
-        fill="#e74c3c" opacity="0.6"/>
+  <g transform="translate(128,128)">
+    <circle cx="0" cy="-52" r="14" fill="none" stroke="url(#gold)" stroke-width="8"/>
 
-  <!-- Secondary sail -->
-  <path d="M124 80 L124 150 L65 118 Z"
-        fill="#c0392b" stroke="#922b21" stroke-width="2"/>
-  <path d="M124 80 L124 150 L85 125 Z"
-        fill="#e74c3c" opacity="0.6"/>
+    <line x1="0" y1="-38" x2="0" y2="58" stroke="url(#gold)" stroke-width="10" stroke-linecap="round"/>
 
-  <!-- Skull and crossbones on sail -->
-  <circle cx="160" cy="115" r="12" fill="#ecf0f1" stroke="#bdc3c7" stroke-width="1"/>
-  <circle cx="155" cy="112" r="3" fill="#2c3e50"/>
-  <circle cx="165" cy="112" r="3" fill="#2c3e50"/>
-  <rect x="157" y="118" width="6" height="4" fill="#2c3e50"/>
-  <line x1="148" y1="130" x2="172" y2="130" stroke="#ecf0f1" stroke-width="3"/>
-  <line x1="152" y1="128" x2="152" y2="142" stroke="#ecf0f1" stroke-width="2"/>
-  <line x1="158" y1="128" x2="158" y2="142" stroke="#ecf0f1" stroke-width="2"/>
-  <line x1="164" y1="128" x2="164" y2="142" stroke="#ecf0f1" stroke-width="2"/>
-  <line x1="170" y1="128" x2="170" y2="142" stroke="#ecf0f1" stroke-width="2"/>
+    <line x1="-30" y1="-10" x2="30" y2="-10" stroke="url(#gold)" stroke-width="8" stroke-linecap="round"/>
 
-  <!-- Flag on top -->
-  <path d="M128 70 L128 50 L150 60 L128 70" fill="#c0392b" stroke="#922b21" stroke-width="1"/>
-  <path d="M128 70 L128 50 L142 57 L128 70" fill="#e74c3c"/>
+    <line x1="-22" y1="-22" x2="22" y2="-22" stroke="url(#gold)" stroke-width="6" stroke-linecap="round"/>
 
-  <!-- Shield highlight -->
-  <path d="M40 60 L128 30 L128 50 L50 75 Z" fill="#ffffff" opacity="0.08"/>
+    <path d="M-34 22 Q-34 52 0 52 Q34 52 34 22" fill="none" stroke="url(#gold)" stroke-width="8" stroke-linecap="round"/>
+
+    <path d="M-34 22 L-46 14 M-34 22 L-48 22 M34 22 L46 14 M34 22 L48 22"
+          stroke="url(#gold)" stroke-width="6" stroke-linecap="round" fill="none"/>
+  </g>
 </svg>
