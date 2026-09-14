@@ -95,8 +95,8 @@ echo "cosmos-laundromat.mp4" > "$DL_DIR/scanning/Cosmos Laundromat/.gitkeep"
 
 # URL download (clean, single file in root)
 mkdir -p "$DL_DIR/clean/Spring Open Movie"
-echo "trailer_1080p.mov" > "$DL_DIR/clear/Spring Open Movie/.gitkeep"
-cat > "$DL_DIR/clear/Spring Open Movie/scan_report.txt" << 'REPORT'
+echo "trailer_1080p.mov" > "$DL_DIR/clean/Spring Open Movie/.gitkeep"
+cat > "$DL_DIR/clean/Spring Open Movie/scan_report.txt" << 'REPORT'
 Mutiny scan report
 Torrent:     Spring Open Movie
 URL:         https://download.blender.org/peach/trailer/trailer_1080p.mov

@@ -21,13 +21,15 @@ BarWidget {
     if (root.bar) root.bar.run("xdg-open http://127.0.0.1:3030")
   }
 
-  visible: running || activeCount > 0 || scanningCount > 0 || threatCount > 0
+  property bool enabled: true
+
+  visible: enabled && (running || activeCount > 0 || scanningCount > 0 || threatCount > 0)
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
   Process {
     id: pollProc
-    command: ["sh", "-c", "curl -fsS http://127.0.0.1:3030/api/torrents 2>/dev/null || echo '[]'"]
+    command: ["sh", "-c", "curl -fsS http://127.0.0.1:3030/api/widget 2>/dev/null || echo '{}'"]
     onExited: function(exitCode, exitStatus) {
       running = exitCode === 0
       if (exitCode !== 0) {
@@ -38,16 +40,10 @@ BarWidget {
       }
       try {
         const data = JSON.parse(pollProc.stdout)
-        let active = 0, scanning = 0, threats = 0
-        for (let i = 0; i < data.length; i++) {
-          const t = data[i]
-          if (t.state === 'downloading' || t.state === 'seeding') active++
-          else if (t.state === 'scanning') scanning++
-          if (t.scan_result === 'threat' || t.state === 'quarantined') threats++
-        }
-        activeCount = active
-        scanningCount = scanning
-        threatCount = threats
+        enabled = data.enabled !== false
+        activeCount = data.active || 0
+        scanningCount = data.scanning || 0
+        threatCount = data.threats || 0
       } catch (e) {
         activeCount = 0
         scanningCount = 0

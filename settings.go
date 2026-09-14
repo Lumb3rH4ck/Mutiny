@@ -48,6 +48,7 @@ var settingRows = []settingRow{
 	{key: "web_serve", label: "Web UI"},
 	{key: "web_lan", label: "Web UI On LAN", restart: true},
 	{key: "web_tailscale", label: "Web UI On Tailscale", restart: true},
+	{key: "widget_enabled", label: "Omarchy Widget"},
 	// UPDATE OPTIONS
 	{key: "auto_update", label: "Auto-Update Engines", restart: true},
 	{key: "update_interval", label: "Update Cadence", restart: true},
@@ -65,7 +66,7 @@ var settingsSections = []settingsSection{
 	{"CUSTOMISATION", []string{"theme", "notifications", "loading_song", "full_shanty"}},
 	{"DOWNLOAD OPTIONS", []string{"max_download_rate", "max_upload_rate", "wait_for_selection", "user_agent_browser", "seed_completed"}},
 	{"SECURITY OPTIONS", []string{"vpn_interface", "panic_enabled", "scan_on_the_fly", "scan_on_completion", "hash_reputation", "dht_enabled"}},
-	{"NETWORK OPTIONS", []string{"web_serve", "web_lan", "web_tailscale"}},
+	{"NETWORK OPTIONS", []string{"web_serve", "web_lan", "web_tailscale", "widget_enabled"}},
 	{"UPDATE OPTIONS", []string{"auto_update", "update_interval"}},
 }
 
@@ -292,6 +293,8 @@ func (m model) settingsValue(key string) string {
 		return boolStr(c.WebLAN)
 	case "web_tailscale":
 		return boolStr(c.WebTailscale)
+	case "widget_enabled":
+		return boolStr(c.WidgetEnabled)
 	}
 	return ""
 }
@@ -501,6 +504,8 @@ func (m model) cycleBool(key string) (model, string) {
 		cur = m.cfg.WebLAN
 	case "web_tailscale":
 		cur = m.cfg.WebTailscale
+	case "widget_enabled":
+		cur = m.cfg.WidgetEnabled
 	}
 	next := !cur
 	switch key {
@@ -526,6 +531,8 @@ func (m model) cycleBool(key string) (model, string) {
 		m.cfg.WebLAN = next
 	case "web_tailscale":
 		m.cfg.WebTailscale = next
+	case "widget_enabled":
+		m.cfg.WidgetEnabled = next
 	}
 	// Live-apply what the running subsystems read from the shared Config.
 	if key == "panic_enabled" && m.vpnMon != nil {

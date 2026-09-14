@@ -102,6 +102,10 @@ type Config struct {
 	// instance add handoff via loopback is also unavailable until it is toggled
 	// back on). Toggle it live from the TUI settings (NETWORK OPTIONS).
 	WebServe bool
+	// WidgetEnabled controls whether the bundled Omarchy shell widget
+	// (mutiny.status) shows in the bar. When off, the widget hides itself.
+	// Toggle from the TUI settings (NETWORK OPTIONS).
+	WidgetEnabled bool
 }
 
 func defaultConfig() Config {
@@ -148,6 +152,7 @@ func defaultConfig() Config {
 		WebLAN:           true,
 		WebTailscale:     true,
 		WebServe:         true,
+		WidgetEnabled:    true,
 	}
 }
 
@@ -203,6 +208,7 @@ type fileConfig struct {
 	WebLAN           *bool   `yaml:"web_lan"`
 	WebTailscale     *bool   `yaml:"web_tailscale"`
 	WebServe         *bool   `yaml:"web_serve"`
+	WidgetEnabled    *bool   `yaml:"widget_enabled"`
 }
 
 func loadConfigFile(path string) (Config, error) {
@@ -1642,7 +1648,7 @@ func main() {
 		}
 	}
 
-	server := api.NewServer(api.ServerOptions{TorrentManager: tm, Scanner: sc, VPNMonitor: vpnMon, Hub: hub, Port: cfg.Port, APIToken: cfg.APIToken, WebRoot: webAssets, Version: version}).SetListen(cfg.Host, cfg.WebLAN, cfg.WebTailscale)
+	server := api.NewServer(api.ServerOptions{TorrentManager: tm, Scanner: sc, VPNMonitor: vpnMon, Hub: hub, Port: cfg.Port, APIToken: cfg.APIToken, WebRoot: webAssets, Version: version, WidgetEnabled: cfg.WidgetEnabled}).SetListen(cfg.Host, cfg.WebLAN, cfg.WebTailscale)
 	server.SetWebServices(buildWebServices(&cfg, configPath, tm, store, sc, vpnMon, rescanTorrent, seedSvc))
 
 	sigCh := make(chan os.Signal, 1)

@@ -41,6 +41,8 @@ type Server struct {
 	host string
 	lan  bool
 	ts   bool
+	// widgetEnabled controls whether the bundled Omarchy widget shows.
+	widgetEnabled bool
 	// web holds the optional web-service surface (settings/history/rescan)
 	// provided by main and driven by the static UI; see SetWebServices.
 	web WebServices
@@ -68,14 +70,16 @@ type ServerOptions struct {
 	APIToken       string
 	WebRoot        fs.FS
 	Version        string
+	WidgetEnabled  bool
 }
 
 func NewServer(opts ServerOptions) *Server {
 	return &Server{
-		torrentMgr: opts.TorrentManager,
-		scanner:    opts.Scanner,
-		vpnMonitor: opts.VPNMonitor,
-		version:    opts.Version,
+		torrentMgr:    opts.TorrentManager,
+		scanner:       opts.Scanner,
+		vpnMonitor:    opts.VPNMonitor,
+		version:       opts.Version,
+		widgetEnabled: opts.WidgetEnabled,
 		hub:        opts.Hub,
 		port:       opts.Port,
 		apiToken:   opts.APIToken,
@@ -126,6 +130,7 @@ func (s *Server) Run() error {
 	mux.HandleFunc("/api/vpn", s.handleVPN)
 	mux.HandleFunc("/api/panic", s.handlePanic)
 	mux.HandleFunc("/api/status", s.handleStatus)
+	mux.HandleFunc("/api/widget", s.handleWidget)
 	mux.HandleFunc("/api/settings", s.handleWebSettings)
 	mux.HandleFunc("/api/settings/cycle", s.handleWebSettingsCycle)
 	mux.HandleFunc("/api/history", s.handleWebHistory)
@@ -503,6 +508,33 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"panicked":   s.vpnMonitor.IsPanicked(),
 	}
 	respondJSON(w, status)
+}
+
+func (s *Server) handleWidget(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	active, scanning, threats := 0, 0, 0
+	for _, t := range s.torrentMgr.List() {
+		switch t.State {
+		case "downloading", "seeding":
+			active++
+		case "scanning":
+			scanning++
+		}
+		if t.ScanResult == "threat" || t.State == "quarantined" {
+			threats++
+		}
+	}
+	resp := map[string]interface{}{
+		"enabled":  s.widgetEnabled,
+		"active":   active,
+		"scanning": scanning,
+		"threats":  threats,
+		"panicked": s.vpnMonitor.IsPanicked(),
+	}
+	respondJSON(w, resp)
 }
 
 func respondJSON(w http.ResponseWriter, data interface{}) {
