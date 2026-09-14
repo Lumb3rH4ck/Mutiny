@@ -86,7 +86,7 @@ paru -S omarchy-mutiny-status
 ```
 Then add it to the bar: `omarchy bar add mutiny.status --section right`
 
-Toggle the widget on/off from Mutiny's settings: `T` → NETWORK OPTIONS → Omarchy Widget. The widget polls `/api/widget` and hides itself when disabled.
+Toggle the widget on/off from Mutiny's settings: `T` → CUSTOMISATION → Omarchy Widget. The widget polls `/api/widget` and hides itself when disabled.
 
 **One-line installer**:
 ```bash

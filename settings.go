@@ -31,6 +31,7 @@ var settingRows = []settingRow{
 	{key: "notifications", label: "Notifications"},
 	{key: "loading_song", label: "Sea Shanty", restart: true},
 	{key: "full_shanty", label: "Full Shanty", restart: true},
+	{key: "widget_enabled", label: "Omarchy Widget"},
 	// DOWNLOAD OPTIONS
 	{key: "max_download_rate", label: "Max Download Rate"},
 	{key: "max_upload_rate", label: "Max Upload Rate"},
@@ -48,7 +49,6 @@ var settingRows = []settingRow{
 	{key: "web_serve", label: "Web UI"},
 	{key: "web_lan", label: "Web UI On LAN", restart: true},
 	{key: "web_tailscale", label: "Web UI On Tailscale", restart: true},
-	{key: "widget_enabled", label: "Omarchy Widget"},
 	// UPDATE OPTIONS
 	{key: "auto_update", label: "Auto-Update Engines", restart: true},
 	{key: "update_interval", label: "Update Cadence", restart: true},
@@ -63,10 +63,10 @@ type settingsSection struct {
 }
 
 var settingsSections = []settingsSection{
-	{"CUSTOMISATION", []string{"theme", "notifications", "loading_song", "full_shanty"}},
+	{"CUSTOMISATION", []string{"theme", "notifications", "loading_song", "full_shanty", "widget_enabled"}},
 	{"DOWNLOAD OPTIONS", []string{"max_download_rate", "max_upload_rate", "wait_for_selection", "user_agent_browser", "seed_completed"}},
 	{"SECURITY OPTIONS", []string{"vpn_interface", "panic_enabled", "scan_on_the_fly", "scan_on_completion", "hash_reputation", "dht_enabled"}},
-	{"NETWORK OPTIONS", []string{"web_serve", "web_lan", "web_tailscale", "widget_enabled"}},
+	{"NETWORK OPTIONS", []string{"web_serve", "web_lan", "web_tailscale"}},
 	{"UPDATE OPTIONS", []string{"auto_update", "update_interval"}},
 }
 
