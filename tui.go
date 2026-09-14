@@ -10,7 +10,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -2353,11 +2352,7 @@ func hardWrap(s string, w int) []string {
 
 // openPath reveals a folder or file in the user's file manager.
 func openPath(path string) {
-	cmd := exec.Command("xdg-open", path)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	if err := cmd.Start(); err != nil {
-		log.Printf("open %s: %v", path, err)
-	}
+	openPathPlatform(path)
 }
 
 func (m model) maxVisibleItems() int {

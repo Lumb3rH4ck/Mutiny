@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -334,7 +333,7 @@ func (s *Scanner) cmd(ctx context.Context, name string, args ...string) *exec.Cm
 // (e.g. "sleep", or the container side of docker exec) holding the output pipe
 // open — which would keep CombinedOutput blocked long past the deadline.
 func (s *Scanner) run(ctx context.Context, cmd *exec.Cmd) ([]byte, error) {
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.SysProcAttr = procAttr()
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
@@ -348,7 +347,7 @@ func (s *Scanner) run(ctx context.Context, cmd *exec.Cmd) ([]byte, error) {
 		return buf.Bytes(), err
 	case <-ctx.Done():
 		if cmd.Process != nil {
-			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+			_ = killProcessTree(cmd.Process.Pid)
 		}
 		<-done
 		return buf.Bytes(), ctx.Err()
@@ -631,7 +630,7 @@ func (s *Scanner) extractArchive(ctx context.Context, path, workdir string) erro
 	out, err := s.run(ctx, cmd)
 	defer func() {
 		rm := exec.Command("docker", "rm", "-f", name)
-		rm.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		rm.SysProcAttr = procAttr()
 		_ = rm.Run()
 	}()
 	if err != nil {

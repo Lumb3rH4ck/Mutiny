@@ -18,7 +18,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -506,12 +505,5 @@ func (u *Updater) updateClamAV() {
 // container-side freshclam can be exec'd as the non-root user that owns it.
 // Falls back to root when the directory cannot be stat'd.
 func clamDBDirOwner(dir string) string {
-	fi, err := os.Stat(dir)
-	if err != nil {
-		return "0:0"
-	}
-	if st, ok := fi.Sys().(*syscall.Stat_t); ok {
-		return fmt.Sprintf("%d:%d", st.Uid, st.Gid)
-	}
-	return "0:0"
+	return clamDBDirOwnerPlatform(dir)
 }
