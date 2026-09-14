@@ -247,7 +247,7 @@ The `mutiny.status` widget shows active download and threat counts in the Omarch
 paru -S omarchy-mutiny-status     # AUR
 # or copy manually:
 mkdir -p ~/.config/omarchy/plugins/mutiny.status
-cp -r plugin/mutiny.status/* ~/.config/omarchy/plugins/mutiny.status/
+cp manifest.json MutinyStatus.qml ~/.config/omarchy/plugins/mutiny.status/
 ```
 
 **Add to bar**:

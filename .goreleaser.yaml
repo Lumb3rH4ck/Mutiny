@@ -43,7 +43,8 @@ archives:
       - build/mutiny-tui.desktop
       - build/mutiny.service
       - build/icons/*
-      - plugin/**/*
+      - manifest.json
+      - MutinyStatus.qml
   - id: windows
     builds: [mutiny_windows]
     name_template: "{{ .ProjectName }}_{{ .Version }}_windows_{{ .Arch }}"
@@ -97,10 +98,9 @@ aurs:
         install -Dm644 build/mutiny-tui.desktop "${pkgdir}/usr/share/applications/mutiny-tui.desktop"
         install -Dm644 build/icons/mutiny.png "${pkgdir}/usr/share/icons/hicolor/256x256/apps/mutiny.png"
         install -Dm644 build/icons/mutiny-48.png "${pkgdir}/usr/share/icons/hicolor/48x48/apps/mutiny.png"
-        install -Dm644 build/icons/mutiny-skull.png "${pkgdir}/usr/share/icons/hicolor/256x256/apps/mutiny-skull.png"
         install -Dm644 build/mutiny.service "${pkgdir}/usr/lib/systemd/user/mutiny.service"
-        install -Dm644 plugin/mutiny.status/manifest.json "${pkgdir}/usr/share/omarchy/plugins/mutiny.status/manifest.json"
-        install -Dm644 plugin/mutiny.status/MutinyStatus.qml "${pkgdir}/usr/share/omarchy/plugins/mutiny.status/MutinyStatus.qml"
+        install -Dm644 manifest.json "${pkgdir}/usr/share/omarchy/plugins/mutiny.status/manifest.json"
+        install -Dm644 MutinyStatus.qml "${pkgdir}/usr/share/omarchy/plugins/mutiny.status/MutinyStatus.qml"
       }
   - name: omarchy-mutiny-status
     homepage: "https://github.com/Lumb3rH4ck/mutiny"
@@ -125,6 +125,6 @@ aurs:
 
       package() {
         cd "$srcdir/mutiny_${pkgver}_linux_amd64"
-        install -Dm644 plugin/mutiny.status/manifest.json "${pkgdir}/usr/share/omarchy/plugins/mutiny.status/manifest.json"
-        install -Dm644 plugin/mutiny.status/MutinyStatus.qml "${pkgdir}/usr/share/omarchy/plugins/mutiny.status/MutinyStatus.qml"
+        install -Dm644 manifest.json "${pkgdir}/usr/share/omarchy/plugins/mutiny.status/manifest.json"
+        install -Dm644 MutinyStatus.qml "${pkgdir}/usr/share/omarchy/plugins/mutiny.status/MutinyStatus.qml"
       }
