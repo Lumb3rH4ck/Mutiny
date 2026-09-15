@@ -2,6 +2,16 @@
 
 All notable changes to Mutiny.
 
+## v1.0.8
+
+### Fixed — settings popup border alignment
+
+- Settings popup now uses manually-drawn box borders instead of lipgloss Border, which misaligned in alacritty and SSH sessions. Every line is padded to exact cell width so borders always line up.
+
+### Added — audio player auto-install
+
+- install.sh now installs mpv (or ffmpeg) so the loading-screen sea shanty works out of the box. Shanty files go in ~/.local/share/mutiny/shanty/.
+
 ## v1.0.7
 
 ### Added — built-in self-update
