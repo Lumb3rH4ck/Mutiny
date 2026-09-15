@@ -218,6 +218,24 @@ mutiny -mode tui
 Package-managed installs (`winget`, `chocolatey`, `paru -Syu`) update through their respective package managers instead.
 
 ---
+## Audio / Sea Shanty
+
+The loading screen plays a sea shanty while downloads initialize. To enable it:
+
+```bash
+# 1. Install an audio player (one is enough):
+sudo pacman -S mpv        # Arch/Omarchy
+sudo apt install mpv      # Debian/Ubuntu
+
+# 2. Place audio files in the shanty directory:
+mkdir -p ~/.local/share/mutiny/shanty
+cp ~/Downloads/sea-shanty.mp3 ~/.local/share/mutiny/shanty/seashanty-edit.mp3
+```
+
+Supported formats: `.mp3`, `.wav`. Players tried in order: `mpv` → `ffplay` → `ffmpeg`.
+
+---
+
 ## Commands
 
 ```bash

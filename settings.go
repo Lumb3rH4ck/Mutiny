@@ -602,9 +602,33 @@ func saveConfigSetting(path, key, value string) error {
 	return os.Chmod(path, 0o600)
 }
 
+// stripAnsi removes ANSI escape sequences from a string so its visible width
+// can be measured.
+func stripAnsi(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	inEsc := false
+	for _, r := range s {
+		if r == '\x1b' {
+			inEsc = true
+			continue
+		}
+		if inEsc {
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+				inEsc = false
+			}
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
 // renderSettingsPopup draws the live settings dialog: every managed setting,
 // its current value, a "(restart)" tag for changes that only apply on the next
-// launch, and the confirm/footer bar.
+// launch, and the confirm/footer bar. Borders are drawn manually (no lipgloss
+// Border) because lipgloss borders add internal padding that misaligns the
+// box in some terminal emulators (alacritty, SSH sessions).
 func (m model) renderSettingsPopup() string {
 	maxW := 46
 	if m.width-30 > maxW {
@@ -634,53 +658,84 @@ func (m model) renderSettingsPopup() string {
 		start = end
 	}
 
+	// innerW is the width of content inside the borders (excluding the
+	// left/right border characters).
+	innerW := maxW - 2
+
 	var lines []string
-	title := " SETTINGS " + strings.Repeat("─", maxW-len(" SETTINGS "))
-	lines = append(lines, m.theme.Title.Render(title))
-	lines = append(lines, "")
+
+	// Top border.
+	lines = append(lines, m.theme.Sep.Render("┌"+strings.Repeat("─", innerW)+"┐"))
+
+	// Title line: " SETTINGS " centered, with ─ fill on each side.
+	titleText := " SETTINGS "
+	titleFill := innerW - lipgloss.Width(titleText)
+	leftFill := titleFill / 2
+	rightFill := titleFill - leftFill
+	titleLeft := m.theme.Sep.Render(strings.Repeat("─", leftFill))
+	titleRight := m.theme.Sep.Render(strings.Repeat("─", rightFill))
+	titleLine := m.theme.Sep.Render("│") + titleLeft + m.theme.Title.Render(titleText) + titleRight + m.theme.Sep.Render("│")
+	lines = append(lines, titleLine)
+
+	// Separator below title.
+	lines = append(lines, m.theme.Sep.Render("├"+strings.Repeat("─", innerW)+"┤"))
 
 	for i := start; i < end; i++ {
 		d := disp[i]
+		var row string
 		if d.setting < 0 {
-			lines = append(lines, m.theme.Section.Width(maxW).Align(lipgloss.Center).Render(d.section))
-			continue
+			row = m.theme.Section.Width(innerW).Align(lipgloss.Center).Render(d.section)
+		} else {
+			r := settingRows[d.setting]
+			cursor := "  "
+			style := m.theme.Label
+			if d.setting == m.settingsIdx {
+				cursor = "▶ "
+				style = m.theme.Selected
+			}
+			body := cursor + r.label
+			value := m.settingsValue(r.key)
+			rest := ""
+			if r.restart {
+				rest = " " + m.theme.Label.Render("(restart)")
+			}
+			pad := innerW - lipgloss.Width(body) - lipgloss.Width(value) - lipgloss.Width(rest)
+			if pad < 1 {
+				pad = 1
+			}
+			row = style.Render(body) + strings.Repeat(" ", pad) + m.theme.Progress.Render(value) + rest
+			if lipgloss.Width(stripAnsi(row)) > innerW {
+				row = truncateShort(row, innerW)
+			}
 		}
-		r := settingRows[d.setting]
-		cursor := "  "
-		style := m.theme.Label
-		if d.setting == m.settingsIdx {
-			cursor = "▶ "
-			style = m.theme.Selected
+		// Pad the plain content to exactly innerW cells.
+		plainWidth := lipgloss.Width(stripAnsi(row))
+		if plainWidth < innerW {
+			row += strings.Repeat(" ", innerW-plainWidth)
 		}
-		body := cursor + r.label
-		value := m.settingsValue(r.key)
-		rest := ""
-		if r.restart {
-			rest = " " + m.theme.Label.Render("(restart)")
-		}
-		pad := maxW - lipgloss.Width(body) - lipgloss.Width(value) - lipgloss.Width(rest)
-		if pad < 1 {
-			pad = 1
-		}
-		row := style.Render(body) + strings.Repeat(" ", pad) + m.theme.Progress.Render(value) + rest
-		if lipgloss.Width(row) > maxW {
-			row = truncateShort(row, maxW)
-		}
-		lines = append(lines, row)
+		lines = append(lines, m.theme.Sep.Render("│")+row+m.theme.Sep.Render("│"))
 	}
 
 	footer := "enter/space cycle · ↑↓ navigate · esc close"
 	if len(disp) > per {
 		footer = fmt.Sprintf("↑↓ scroll · %d/%d · %s", m.settingsIdx+1, len(settingRows), footer)
 	}
-	if lipgloss.Width(footer) > maxW {
-		footer = truncateShort(footer, maxW)
+	if lipgloss.Width(footer) > innerW {
+		footer = truncateShort(footer, innerW)
 	}
-	lines = append(lines, m.theme.Label.Render(footer))
+	footerLine := m.theme.Label.Render(footer)
+	plainWidth := lipgloss.Width(stripAnsi(footerLine))
+	if plainWidth < innerW {
+		footerLine += strings.Repeat(" ", innerW-plainWidth)
+	}
+	lines = append(lines, m.theme.Sep.Render("│")+footerLine+m.theme.Sep.Render("│"))
 
-	if len(lines) > per+4 {
-		lines = lines[:per+4]
+	if len(lines) > per+5 {
+		lines = lines[:per+5]
 	}
-	content := strings.Join(lines, "\n")
-	return m.theme.SelBG.Width(maxW).Render(content)
+
+	// Bottom border.
+	lines = append(lines, m.theme.Sep.Render("└"+strings.Repeat("─", innerW)+"┘"))
+
+	return strings.Join(lines, "\n")
 }

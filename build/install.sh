@@ -83,7 +83,45 @@ detect_pkg_manager() {
     fi
 }
 
-install_engine_packages() {
+install_audio_player() {
+    # Check if any supported audio player is already available
+    if command -v mpv &>/dev/null || command -v ffplay &>/dev/null || command -v ffmpeg &>/dev/null; then
+        echo "Audio player found ($(command -v mpv || command -v ffplay || command -v ffmpeg))."
+        return 0
+    fi
+
+    echo "Installing audio player for loading-screen sea shanty..."
+
+    local pkgs
+    pkgs=$(detect_pkg_manager)
+    local manager="${pkgs%% *}"
+
+    case "$manager" in
+        pacman)
+            sudo pacman -S --noconfirm --needed mpv 2>/dev/null || \
+            sudo pacman -S --noconfirm --needed ffmpeg 2>/dev/null || true
+            ;;
+        apt)
+            sudo apt-get install -y --no-install-recommends mpv 2>/dev/null || \
+            sudo apt-get install -y --no-install-recommends ffmpeg 2>/dev/null || true
+            ;;
+        dnf)
+            sudo dnf install -y mpv 2>/dev/null || \
+            sudo dnf install -y ffmpeg 2>/dev/null || true
+            ;;
+        zypper)
+            sudo zypper install -y mpv 2>/dev/null || \
+            sudo zypper install -y ffmpeg 2>/dev/null || true
+            ;;
+    esac
+
+    if command -v mpv &>/dev/null || command -v ffplay &>/dev/null || command -v ffmpeg &>/dev/null; then
+        echo "Audio player installed."
+    else
+        echo "WARN: could not install audio player — sea shanty will be silent."
+        echo "  Install mpv or ffmpeg manually to enable loading-screen music."
+    fi
+}
     local pkgs
     pkgs=$(detect_pkg_manager)
     local manager="${pkgs%% *}"
@@ -408,6 +446,9 @@ setup_engines() {
     run_freshclam
     bootstrap_yara_rules
 
+    # Install audio player for loading-screen sea shanty
+    install_audio_player
+
     # Generate/update Mutiny config with correct paths
     create_mutiny_config
 
@@ -418,6 +459,7 @@ setup_engines() {
     echo "  Config:  $CONFIG_DIR/config.yaml"
     echo ""
     echo "  Both engines should show as ON when you launch Mutiny."
+    echo "  Sea shanty: drop .mp3/.wav files in ~/.local/share/mutiny/shanty/"
     echo ""
 }
 
