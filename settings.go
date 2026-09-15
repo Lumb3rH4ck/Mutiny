@@ -616,7 +616,6 @@ func (m model) renderSettingsPopup() string {
 	if maxW < 42 {
 		maxW = 42
 	}
-	inner := maxW - 4
 	per := m.settingsPer()
 	if per < 3 {
 		per = 3
@@ -636,13 +635,14 @@ func (m model) renderSettingsPopup() string {
 	}
 
 	var lines []string
-	lines = append(lines, m.theme.Title.Render(" SETTINGS "+strings.Repeat("─", inner-11)))
+	title := " SETTINGS " + strings.Repeat("─", maxW-len(" SETTINGS "))
+	lines = append(lines, m.theme.Title.Render(title))
 	lines = append(lines, "")
 
 	for i := start; i < end; i++ {
 		d := disp[i]
 		if d.setting < 0 {
-			lines = append(lines, m.theme.Section.Width(inner).Align(lipgloss.Center).Render(d.section))
+			lines = append(lines, m.theme.Section.Width(maxW).Align(lipgloss.Center).Render(d.section))
 			continue
 		}
 		r := settingRows[d.setting]
@@ -658,13 +658,13 @@ func (m model) renderSettingsPopup() string {
 		if r.restart {
 			rest = " " + m.theme.Label.Render("(restart)")
 		}
-		pad := inner - lipgloss.Width(body) - lipgloss.Width(value) - lipgloss.Width(rest)
+		pad := maxW - lipgloss.Width(body) - lipgloss.Width(value) - lipgloss.Width(rest)
 		if pad < 1 {
 			pad = 1
 		}
 		row := style.Render(body) + strings.Repeat(" ", pad) + m.theme.Progress.Render(value) + rest
-		if lipgloss.Width(row) > inner {
-			row = truncateShort(row, inner)
+		if lipgloss.Width(row) > maxW {
+			row = truncateShort(row, maxW)
 		}
 		lines = append(lines, row)
 	}
@@ -673,10 +673,8 @@ func (m model) renderSettingsPopup() string {
 	if len(disp) > per {
 		footer = fmt.Sprintf("↑↓ scroll · %d/%d · %s", m.settingsIdx+1, len(settingRows), footer)
 	}
-	// The full footer can exceed the box width once the scroll hint appears;
-	// clip it so it never wraps the box a line taller than the budget allows.
-	if lipgloss.Width(footer) > inner {
-		footer = truncateShort(footer, inner)
+	if lipgloss.Width(footer) > maxW {
+		footer = truncateShort(footer, maxW)
 	}
 	lines = append(lines, m.theme.Label.Render(footer))
 
@@ -684,8 +682,5 @@ func (m model) renderSettingsPopup() string {
 		lines = lines[:per+4]
 	}
 	content := strings.Join(lines, "\n")
-	// Render without lipgloss borders — box-drawing characters misalign in
-	// some terminal emulators (alacritty, SSH sessions). Use a highlight
-	// background instead for universal rendering.
 	return m.theme.SelBG.Width(maxW).Render(content)
 }
