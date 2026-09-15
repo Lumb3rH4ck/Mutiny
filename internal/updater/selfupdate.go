@@ -110,6 +110,12 @@ func SelfUpdate(currentVersion string) (bool, error) {
 	if err := copyFile(newBinary, sibling); err != nil {
 		return false, fmt.Errorf("stage new binary: %w", err)
 	}
+	// Explicitly set execute permission — copyFile creates with 0644, and
+	// some platforms reset mode on rename.
+	if err := os.Chmod(sibling, 0755); err != nil {
+		os.Remove(sibling)
+		return false, fmt.Errorf("chmod new binary: %w", err)
+	}
 	if err := os.Rename(sibling, exePath); err != nil {
 		os.Remove(sibling)
 		return false, fmt.Errorf("install new binary: %w", err)
@@ -275,7 +281,8 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	defer in.Close()
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	// 0755: binary must remain executeable after copy + rename.
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
 	if err != nil {
 		return err
 	}
