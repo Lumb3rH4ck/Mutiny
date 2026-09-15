@@ -247,6 +247,9 @@ func (m model) settingsValue(key string) string {
 		return boolStr(c.Notifications)
 	case "loading_song":
 		if c.LoadingSong == "" {
+			if shantyPath == "" {
+				return "unavailable"
+			}
 			return "off"
 		}
 		return "on"
@@ -360,8 +363,11 @@ func (m model) cycleSettingByKey(key string) (model, string, error) {
 		m.saveSetting("theme", next)
 		return m, themeLabel(next), nil
 	case "loading_song":
-		// Toggling the sea shanty flips between the default edit and disabled
-		// (loading_song: ""). A custom path set directly in config.yaml is kept.
+		// No audio files found — toggle is unavailable.
+		if shantyPath == "" {
+			return m, "unavailable", nil
+		}
+		// Toggle between the default edit (on) and disabled (off).
 		if m.cfg.LoadingSong == "" {
 			m.cfg.LoadingSong = shantyPath
 			m.saveSetting("loading_song", shantyPath)

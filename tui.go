@@ -1494,11 +1494,14 @@ func (m model) mainView() string {
 			b.WriteString("   ")
 			b.WriteString(m.renderBrowsePopup())
 		}
-		if m.settingsPopup {
-			b.WriteString("\n\n")
+	if m.settingsPopup {
+		b.WriteString("\n\n")
+		for _, line := range strings.Split(m.renderSettingsPopup(), "\n") {
 			b.WriteString("   ")
-			b.WriteString(m.renderSettingsPopup())
+			b.WriteString(line)
+			b.WriteString("\n")
 		}
+	}
 		b.WriteString("\n")
 	} else {
 		// Separator between title and list
