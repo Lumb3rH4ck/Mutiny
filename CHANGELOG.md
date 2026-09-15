@@ -2,7 +2,20 @@
 
 All notable changes to Mutiny.
 
-## Unreleased
+## v1.0.7
+
+### Added — built-in self-update
+
+- `mutiny --update` checks GitHub for the latest release, downloads the correct binary for the current OS/arch, verifies the checksum, and atomically replaces the running binary. Restart to apply.
+
+### Changed — automated first-run engine setup
+
+- `install.sh` now fully automates ClamAV + YARA setup: installs packages (pacman/apt/dnf/zypper), configures `clamd.conf`/`freshclam.conf` (renames `.sample`, uncomments `LocalSocket`, removes `Example`), starts the daemon, fixes socket permissions, runs `freshclam`, bootstraps YARA rules, and generates `~/.config/mutiny/config.yaml` with correct engine paths. Both engines show as ON on first launch with no manual steps.
+
+### Fixed — cross-device audio and terminal rendering
+
+- Sea shanty audio paths are no longer hardcoded to a single user's home directory. `findShantyPaths()` searches `<binary>/assets/`, `~/.local/share/mutiny/shanty/`, `~/.config/mutiny/shanty/`, and `/usr/share/mutiny/shanty/` for `.mp3` or `.wav` files.
+- Settings popup no longer uses lipgloss box-drawing borders (which misalign in alacritty and SSH sessions). Uses a background highlight instead, with the title bar `─` characters spanning the full popup width.
 
 ### Added — toggle-able re-seeding of delivered downloads
 
