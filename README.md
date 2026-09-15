@@ -60,9 +60,9 @@
 
 ### Extras
 - **5 themes** — `pirate` (default), `cherry-blossom`, `neon`, `/home`, `coffee` — each with its own icon set
-- **Built-in auto-update** — `freshclam` + YARA rules refreshed on a timer
+- **Built-in auto-update** — `freshclam` + YARA rules refreshed on a timer; binary self-update via `mutiny --update`
 - **Re-seed delivered downloads** — toggle global or per-item via a dedicated seed client
-- **Sea shanty loading screen** — plays a shanty while loading (configurable)
+- **Sea shanty loading screen** — plays a shanty while loading (configurable). Ships with bundled audio; custom files go in `~/.local/share/mutiny/shanty/`. Requires `mpv`, `ffplay`, or `ffmpeg` installed.
 - **HTTP(S) direct links** — add any URL pointing at a `.torrent` file like a normal download
 
 ---
@@ -205,6 +205,19 @@ Or use the desktop entries: search "Mutiny" in your application launcher.
 
 ---
 
+## Updating
+
+```bash
+# Self-update to the latest release (downloads, verifies, replaces the binary)
+mutiny --update
+
+# Then restart to use the new version
+mutiny -mode tui
+```
+
+Package-managed installs (`winget`, `chocolatey`, `paru -Syu`) update through their respective package managers instead.
+
+---
 ## Commands
 
 ```bash
@@ -213,6 +226,7 @@ mutiny -mode server                           # Launch server (web UI + API)
 mutiny -mode tui ~/Downloads/file.torrent     # Add torrent on launch
 mutiny -mode tui "magnet:?xt=urn:btih:..."   # Add magnet on launch
 mutiny --version                              # Print version
+mutiny --update                               # Update to latest release and exit
 mutiny --config ~/.config/mutiny/config.yaml  # Custom config path
 mutiny -no-web-lan                            # Disable LAN serving
 mutiny -no-web-tailscale                      # Disable Tailscale serving

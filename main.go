@@ -662,10 +662,12 @@ func main() {
 	var configPath string
 	var referrer string
 	var printVersion bool
+	var doUpdate bool
 	flag.StringVar(&mode, "mode", "server", "run mode: server | tui")
 	flag.StringVar(&configPath, "config", "", "path to config file (default: ./config.yaml, then ~/.config/mutiny/config.yaml)")
 	flag.StringVar(&referrer, "referrer", "", "Referer header to send with the positional http(s) URL download(s)")
 	flag.BoolVar(&printVersion, "version", false, "print version and exit")
+	flag.BoolVar(&doUpdate, "update", false, "update to the latest release and exit")
 	// The web UI/API listens on loopback always; these flags disable the extra
 	// binds (LAN / Tailscale) regardless of what web_lan / web_tailscale in the
 	// config say, so a locked-down launch can't accidentally face the network.
@@ -677,6 +679,20 @@ func main() {
 
 	if printVersion {
 		fmt.Printf("mutiny %s\n", version)
+		os.Exit(0)
+	}
+
+	if doUpdate {
+		fmt.Printf("mutiny %s — checking for updates...\n", version)
+		updated, err := updater.SelfUpdate(version)
+		if err != nil {
+			log.Fatalf("update failed: %v", err)
+		}
+		if updated {
+			fmt.Println("Update installed. Restart Mutiny to use the new version.")
+		} else {
+			fmt.Println("Already up to date.")
+		}
 		os.Exit(0)
 	}
 
