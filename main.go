@@ -22,6 +22,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"mutiny/internal/assets"
 	"mutiny/internal/api"
 	"mutiny/internal/reputation"
 	"mutiny/internal/sandbox"
@@ -769,8 +770,15 @@ func main() {
 
 	for _, dir := range []string{cfg.DownloadDir, cfg.QuarantineDir, cfg.ScanDir, cfg.CleanDir} {
 		if err := os.MkdirAll(dir, 0700); err != nil {
-			log.Fatalf("create dir %s: %v", dir, err)
+			log.Fatalf("create dir %s: %v", err)
 		}
+	}
+
+	// Extract bundled sea shanty audio to the user's shanty directory.
+	home, _ := os.UserHomeDir()
+	shantyDir := filepath.Join(home, ".local", "share", "mutiny", "shanty")
+	if err := assets.EnsureShantyFiles(shantyDir); err != nil {
+		log.Printf("extract shanty audio: %v", err)
 	}
 
 	stateDir := filepath.Join(cfg.DownloadDir, ".state")

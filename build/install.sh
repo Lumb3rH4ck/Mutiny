@@ -155,63 +155,6 @@ install_audio_player() {
     fi
 }
 
-# create_placeholder_shanty generates a short WAV file (a simple two-note
-# jingle) so the sea shanty feature has something to play out of the box.
-# Users can replace it with their own .mp3/.wav at
-# ~/.local/share/mutiny/shanty/seashanty-edit.mp3
-create_placeholder_shanty() {
-    local shanty_dir="$HOME/.local/share/mutiny/shanty"
-    local shanty_file="$shanty_dir/seashanty-edit.wav"
-
-    mkdir -p "$shanty_dir"
-
-    if [[ -f "$shanty_file" || -f "$shanty_dir/seashanty-edit.mp3" ]]; then
-        echo "Shanty audio already exists."
-        return 0
-    fi
-
-    echo "Creating placeholder sea shanty audio..."
-
-    # Generate a simple WAV using ffmpeg/ffmpeg, or fall back to a
-    # Python one-liner, or finally a raw byte write.
-    if command -v ffmpeg &>/dev/null; then
-        ffmpeg -y -f lavfi -i "sine=frequency=440:duration=0.5" \
-               -f lavfi -i "sine=frequency=554:duration=0.5" \
-               -f lavfi -i "sine=frequency=659:duration=1.0" \
-               -filter_complex "[0:a][1:a][2:a]concat=n=3:v=0:a=1" \
-               "$shanty_file" -loglevel error 2>/dev/null && \
-        echo "Created placeholder shanty at $shanty_file" && return 0
-    fi
-
-    if command -v python3 &>/dev/null; then
-        python3 - "$shanty_file" << 'PYEOF'
-import struct, sys, math
-path = sys.argv[1]
-sr = 44000
-notes = [(440, 0.5), (554, 0.5), (659, 1.0)]
-frames = []
-for freq, dur in notes:
-    n = int(sr * dur)
-    for i in range(n):
-        v = int(32767 * 0.3 * math.sin(2 * math.pi * freq * i / sr))
-        frames.append(v)
-data = b"".join(struct.pack("<h", v) for v in frames)
-with open(path, "wb") as f:
-    f.write(b"RIFF")
-    f.write(struct.pack("<I", 36 + len(data)))
-    f.write(b"WAVEfmt ")
-    f.write(struct.pack("<IHHIIHH", 16, 1, 1, sr, sr * 2, 2, 16))
-    f.write(b"data")
-    f.write(struct.pack("<I", len(data)))
-    f.write(data)
-PYEOF
-        [[ -f "$shanty_file" ]] && echo "Created placeholder shanty at $shanty_file" && return 0
-    fi
-
-    echo "WARN: could not create placeholder audio — install ffmpeg or python3."
-    echo "  You can add your own .mp3/.wav later at $shanty_dir/"
-}
-
 # resolve_clamav_config finds the clamd.conf and freshclam.conf locations
 # across distros and returns them as "clamd_conf freshclam_conf".
 resolve_clamav_config() {
@@ -509,7 +452,6 @@ setup_engines() {
 
     # Install audio player for loading-screen sea shanty
     install_audio_player
-    create_placeholder_shanty
 
     # Generate/update Mutiny config with correct paths
     create_mutiny_config
@@ -521,7 +463,8 @@ setup_engines() {
     echo "  Config:  $CONFIG_DIR/config.yaml"
     echo ""
     echo "  Both engines should show as ON when you launch Mutiny."
-    echo "  Sea shanty: drop .mp3/.wav files in ~/.local/share/mutiny/shanty/"
+    echo "  Sea shanty: bundled audio auto-extracts on first launch."
+    echo "  Needs mpv or ffmpeg installed to play."
     echo ""
 }
 
