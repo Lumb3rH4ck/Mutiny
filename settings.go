@@ -683,5 +683,9 @@ func (m model) renderSettingsPopup() string {
 	if len(lines) > per+4 {
 		lines = lines[:per+4]
 	}
-	return m.theme.Popup.Width(maxW).Render(strings.Join(lines, "\n"))
+	content := strings.Join(lines, "\n")
+	// Render without lipgloss borders — box-drawing characters misalign in
+	// some terminal emulators (alacritty, SSH sessions). Use a highlight
+	// background instead for universal rendering.
+	return m.theme.SelBG.Width(maxW).Render(content)
 }

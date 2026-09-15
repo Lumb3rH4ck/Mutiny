@@ -547,10 +547,56 @@ func runTUI(opts tuiOptions) {
 // is the long playing version swapped in when the Full Shanty setting is on.
 // A missing file or no audio player is a silent no-op. Whichever variant is
 // playing is cut the moment the loading screen gives way to the main view.
-const (
-	shantyPath     = "/home/lumb3r/Downloads/seashanty-edit.mp3"
-	fullShantyPath = "/home/lumb3r/Downloads/sea-shanty-full.mp3"
+var (
+	shantyPath     = ""
+	fullShantyPath = ""
 )
+
+// findShantyPaths locates bundled shanty files. Searches, in order:
+//   - <binary-dir>/assets/ (shipped alongside the binary)
+//   - ~/.local/share/mutiny/shanty/ (user-provided, from install or manual)
+//   - ~/.config/mutiny/shanty/ (alternate user location)
+//
+// mp3 files are picked up automatically; the first match wins for each variant.
+func findShantyPaths() (short, full string) {
+	shortName := "seashanty-edit.mp3"
+	fullName := "sea-shanty-full.mp3"
+
+	dirs := []string{}
+	// Directory containing the running binary
+	if exe, err := os.Executable(); err == nil {
+		dirs = append(dirs, filepath.Join(filepath.Dir(exe), "assets"))
+	}
+	dirs = append(dirs,
+		filepath.Join(os.Getenv("HOME"), ".local/share/mutiny/shanty"),
+		filepath.Join(os.Getenv("HOME"), ".config/mutiny/shanty"),
+		"/usr/share/mutiny/shanty",
+	)
+
+	for _, d := range dirs {
+		s := filepath.Join(d, shortName)
+		f := filepath.Join(d, fullName)
+		if short == "" {
+			if _, err := os.Stat(s); err == nil {
+				short = s
+			} else if _, err := os.Stat(strings.TrimSuffix(s, ".mp3") + ".wav"); err == nil {
+				short = strings.TrimSuffix(s, ".mp3") + ".wav"
+			}
+		}
+		if full == "" {
+			if _, err := os.Stat(f); err == nil {
+				full = f
+			} else if _, err := os.Stat(strings.TrimSuffix(f, ".mp3") + ".wav"); err == nil {
+				full = strings.TrimSuffix(f, ".mp3") + ".wav"
+			}
+		}
+	}
+	return short, full
+}
+
+func init() {
+	shantyPath, fullShantyPath = findShantyPaths()
+}
 
 // effectiveShantyPath resolves which song file plays during the loading screen.
 // An empty LoadingSong disables the shanty entirely (the Full Shanty setting
@@ -560,7 +606,13 @@ func effectiveShantyPath(c *Config) string {
 		return ""
 	}
 	if c.FullShanty {
-		return fullShantyPath
+		if fullShantyPath != "" {
+			return fullShantyPath
+		}
+		return shantyPath // fall back to short if full isn't found
+	}
+	if shantyPath != "" {
+		return shantyPath
 	}
 	return c.LoadingSong
 }

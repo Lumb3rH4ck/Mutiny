@@ -6,6 +6,8 @@ DESKTOP_DIR="$HOME/.local/share/applications"
 ICON_DIR="/usr/local/share/icons/hicolor/256x256/apps"
 ICON_DIR_48="/usr/local/share/icons/hicolor/48x48/apps"
 SYSTEMD_DIR="$HOME/.config/systemd/user"
+RULES_DIR="$HOME/.local/share/mutiny/rules"
+CONFIG_DIR="$HOME/.config/mutiny"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -65,6 +67,360 @@ install_files() {
     sudo gtk-update-icon-cache /usr/local/share/icons/hicolor 2>/dev/null || true
 }
 
+# detect_pkg_manager returns the package manager command and the package
+# names for clamav and yara on the current system.
+detect_pkg_manager() {
+    if command -v pacman &>/dev/null; then
+        echo "pacman clamav yara"
+    elif command -v apt-get &>/dev/null; then
+        echo "apt clamav clamav-daemon yara"
+    elif command -v dnf &>/dev/null; then
+        echo "dnf clamav clamd clamav-update yara"
+    elif command -v zypper &>/dev/null; then
+        echo "zypper clamav yara"
+    else
+        echo "unknown"
+    fi
+}
+
+install_engine_packages() {
+    local pkgs
+    pkgs=$(detect_pkg_manager)
+    local manager="${pkgs%% *}"
+
+    if [[ "$manager" == "unknown" ]]; then
+        echo "WARN: no supported package manager found. Install clamav + yara manually."
+        return 1
+    fi
+
+    local rest="${pkgs#* }"
+    echo "Installing scan engines via $manager: $rest..."
+
+    case "$manager" in
+        pacman)
+            sudo pacman -S --noconfirm --needed $rest
+            ;;
+        apt)
+            sudo apt-get update -qq
+            sudo apt-get install -y $rest
+            ;;
+        dnf)
+            sudo dnf install -y $rest
+            ;;
+        zypper)
+            sudo zypper install -y $rest
+            ;;
+    esac
+}
+
+# resolve_clamav_config finds the clamd.conf and freshclam.conf locations
+# across distros and returns them as "clamd_conf freshclam_conf".
+resolve_clamav_config() {
+    local candidates_clamd=(
+        "/etc/clamav/clamd.conf"
+        "/etc/clamd.conf"
+        "/etc/clamav/clamd.conf.sample"
+        "/etc/clamd.conf.sample"
+        "/usr/local/etc/clamav/clamd.conf"
+        "/usr/local/etc/clamd.conf"
+    )
+    local candidates_fresh=(
+        "/etc/clamav/freshclam.conf"
+        "/etc/freshclam.conf"
+        "/etc/clamav/freshclam.conf.sample"
+        "/etc/freshclam.conf.sample"
+        "/usr/local/etc/clamav/freshclam.conf"
+        "/usr/local/etc/freshclam.conf"
+    )
+
+    local clamd_conf="" fresh_conf=""
+    for c in "${candidates_clamd[@]}"; do
+        if [[ -f "$c" ]]; then
+            clamd_conf="$c"
+            break
+        fi
+    done
+    for c in "${candidates_fresh[@]}"; do
+        if [[ -f "$c" ]]; then
+            fresh_conf="$c"
+            break
+        fi
+    done
+
+    echo "${clamd_conf:-} ${fresh_conf:-}"
+}
+
+# fix_clamav_config renames *.sample files and uncomments the essential
+# settings so the daemon starts without manual editing.
+fix_clamav_config() {
+    local clamd_conf fresh_conf
+    read -r clamd_conf fresh_conf <<< "$(resolve_clamav_config)"
+
+    # Rename .sample files to actual configs if no real config exists
+    if [[ -n "$clamd_conf" && "$clamd_conf" == *.sample ]]; then
+        local real="${clamd_conf%.sample}"
+        if [[ ! -f "$real" ]]; then
+            echo "Activating ClamAV config: $clamd_conf -> $real"
+            sudo cp "$clamd_conf" "$real"
+            clamd_conf="$real"
+        fi
+    fi
+
+    if [[ -n "$fresh_conf" && "$fresh_conf" == *.sample ]]; then
+        local real="${fresh_conf%.sample}"
+        if [[ ! -f "$real" ]]; then
+            echo "Activating freshclam config: $fresh_conf -> $real"
+            sudo cp "$fresh_conf" "$real"
+            fresh_conf="$real"
+        fi
+    fi
+
+    # Uncomment required directives in clamd.conf
+    if [[ -n "$clamd_conf" && -f "$clamd_conf" ]]; then
+        # Ensure LocalSocket is set
+        if grep -qE '^\s*#?\s*LocalSocket\s' "$clamd_conf"; then
+            sudo sed -i 's/^\s*#\s*LocalSocket\s/LocalSocket /' "$clamd_conf"
+        elif ! grep -qE '^\s*LocalSocket\s' "$clamd_conf"; then
+            echo "LocalSocket /var/run/clamav/clamd.ctl" | sudo tee -a "$clamd_conf" > /dev/null
+        fi
+
+        # Remove Example line (blocks daemon start)
+        sudo sed -i 's/^\s*Example\s*/#Example/' "$clamd_conf" 2>/dev/null || true
+    fi
+
+    # Uncomment required directives in freshclam.conf
+    if [[ -n "$fresh_conf" && -f "$fresh_conf" ]]; then
+        sudo sed -i 's/^\s*#\s*DatabaseMirror\s/DatabaseMirror /' "$fresh_conf" 2>/dev/null || true
+        sudo sed -i 's/^\s*Example\s*/#Example/' "$fresh_conf" 2>/dev/null || true
+    fi
+}
+
+# find_clamav_socket returns the clamav socket path as configured in clamd.conf
+# or the default if not found.
+find_clamav_socket() {
+    local clamd_conf
+    read -r clamd_conf _ <<< "$(resolve_clamav_config)"
+
+    if [[ -n "$clamd_conf" && -f "$clamd_conf" ]]; then
+        local socket
+        socket=$(grep -E '^\s*LocalSocket\s' "$clamd_conf" 2>/dev/null | awk '{print $2}' | head -1)
+        if [[ -n "$socket" ]]; then
+            echo "$socket"
+            return
+        fi
+    fi
+
+    echo "/var/run/clamav/clamd.ctl"
+}
+
+fix_socket_permissions() {
+    local socket="$1"
+    local socket_dir
+    socket_dir="$(dirname "$socket")"
+
+    # Make the socket world-accessible so the user can connect
+    if [[ -d "$socket_dir" ]]; then
+        sudo chmod 755 "$socket_dir" 2>/dev/null || true
+    fi
+
+    # Add user to clamav group for socket access
+    if getent group clamav &>/dev/null; then
+        if ! id -nG "$USER" | grep -qw clamav; then
+            echo "Adding $USER to clamav group for socket access..."
+            sudo usermod -aG clamav "$USER" 2>/dev/null || true
+        fi
+    fi
+}
+
+create_mutiny_config() {
+    local clamav_socket
+    clamav_socket="$(find_clamav_socket)"
+
+    mkdir -p "$CONFIG_DIR"
+
+    # Preserve existing config if present
+    if [[ -f "$CONFIG_DIR/config.yaml" ]]; then
+        echo "Existing config found at $CONFIG_DIR/config.yaml — preserving."
+        echo "  Engine settings auto-adjusted below."
+        # Update just the engine-related lines if they exist, add if missing
+        local tmp="$CONFIG_DIR/config.yaml.tmp"
+        cp "$CONFIG_DIR/config.yaml" "$tmp"
+
+        if grep -q '^clamav_socket:' "$tmp"; then
+            sed -i "s|^clamav_socket:.*|clamav_socket: \"$clamav_socket\"|" "$tmp"
+        else
+            echo "clamav_socket: \"$clamav_socket\"" >> "$tmp"
+        fi
+
+        if grep -q '^yara_rules_dir:' "$tmp"; then
+            sed -i "s|^yara_rules_dir:.*|yara_rules_dir: \"$RULES_DIR\"|" "$tmp"
+        else
+            echo "yara_rules_dir: \"$RULES_DIR\"" >> "$tmp"
+        fi
+
+        mv "$tmp" "$CONFIG_DIR/config.yaml"
+    else
+        cat > "$CONFIG_DIR/config.yaml" <<EOF
+# Mutiny configuration
+
+# Server
+host: "127.0.0.1"
+port: 3030
+web_lan: true
+web_tailscale: true
+
+# Downloads
+download_dir: "~/Downloads/Mutiny"
+quarantine_dir: "~/Downloads/Mutiny/quarantine"
+scan_dir: "~/Downloads/Mutiny/scanning"
+clean_dir: "~/Downloads/Mutiny/clean"
+
+# Scanner
+clamav_socket: "$clamav_socket"
+yara_rules_dir: "$RULES_DIR"
+scan_on_completion: true
+scan_on_the_fly: true
+max_file_size_scan: "100G"
+scan_timeout: "20m"
+hash_reputation: true
+scan_container: ""
+
+# Auto-update
+auto_update: true
+update_interval: "168h"
+
+# VPN
+vpn_interface: "surfshark_wg"
+vpn_check_interval: 5
+vpn_ip_check_url: "https://ifconfig.me/ip"
+panic_enabled: true
+
+# TUI
+theme: "pirate"
+notifications: true
+
+# Torrent
+max_concurrent_downloads: 3
+max_upload_rate: "0"
+max_download_rate: "0"
+listen_port: 42069
+dht_enabled: true
+
+# Loading screen
+loading_song: ""
+EOF
+    fi
+
+    echo "Config written to $CONFIG_DIR/config.yaml"
+}
+
+run_freshclam() {
+    if ! command -v freshclam &>/dev/null; then
+        return
+    fi
+
+    echo "Downloading ClamAV virus definitions (first run, may take a minute)..."
+    sudo freshclam 2>/dev/null || {
+        echo "WARN: freshclam failed — definitions will auto-update on first launch."
+    }
+}
+
+bootstrap_yara_rules() {
+    echo "Bootstrapping YARA rules in $RULES_DIR ..."
+    mkdir -p "$RULES_DIR"
+
+    cat > "$RULES_DIR/mutiny-core.yar" <<'RULE'
+rule Mutiny_Executable_PE
+{
+    meta:
+        description = "Detects Windows PE executables"
+        author = "Mutiny"
+    strings:
+        $mz = { 4D 5A }
+    condition:
+        $mz at 0
+}
+
+rule Mutiny_ElF_Binary
+{
+    meta:
+        description = "Detects ELF executables"
+        author = "Mutiny"
+    strings:
+        { 7F 45 4C 46 }
+    condition:
+        $ at 0
+}
+
+rule Mutiny_Script_Suspicious
+{
+    meta:
+        description = "Detects potentially malicious script patterns"
+        author = "Mutiny"
+    strings:
+        $s1 = "eval(" nocase
+        $s2 = "exec(" nocase
+        $s3 = "os.system" nocase
+        $s4 = "subprocess.call" nocase
+        $s5 = "WScript.Shell" nocase
+        $s6 = "powershell" nocase
+        $s7 = "cmd.exe" nocase
+    condition:
+        any of them
+}
+
+rule Mutiny_Archive_DoubleExtension
+{
+    meta:
+        description = "Suspicious double extension (e.g. .pdf.exe)"
+        author = "Mutiny"
+    strings:
+        $ext1 = ".pdf.exe"
+        $ext2 = ".doc.exe"
+        $ext3 = ".txt.exe"
+        $ext4 = ".jpg.exe"
+        $ext5 = ".zip.exe"
+    condition:
+        any of them
+}
+RULE
+
+    echo "Wrote mutiny-core.yar to $RULES_DIR"
+}
+
+setup_engines() {
+    echo ""
+    echo "=== Setting up scan engines ==="
+
+    install_engine_packages || true
+
+    # Fix ClamAV config BEFORE starting the daemon (renames .sample,
+    # uncomments LocalSocket/Example lines)
+    fix_clamav_config
+
+    start_clamav
+
+    # Fix socket permissions and user group membership
+    local clamav_socket
+    clamav_socket="$(find_clamav_socket)"
+    fix_socket_permissions "$clamav_socket"
+
+    run_freshclam
+    bootstrap_yara_rules
+
+    # Generate/update Mutiny config with correct paths
+    create_mutiny_config
+
+    echo ""
+    echo "=== Engine setup complete ==="
+    echo "  ClamAV:  sudo systemctl status clamav-daemon"
+    echo "  YARA:    $RULES_DIR"
+    echo "  Config:  $CONFIG_DIR/config.yaml"
+    echo ""
+    echo "  Both engines should show as ON when you launch Mutiny."
+    echo ""
+}
+
 if [[ "$MODE" == "--release" ]]; then
     if [[ -z "$VERSION" ]]; then
         echo "Fetching latest release version..."
@@ -111,6 +467,7 @@ if [[ "$MODE" == "--release" ]]; then
 
     install_binary "$TMPDIR/mutiny"
     install_files
+    setup_engines
 
     echo ""
     echo "Mutiny $VERSION installed successfully (release build)!"
@@ -121,6 +478,7 @@ else
 
     install_binary "$PROJECT_DIR/mutiny"
     install_files
+    setup_engines
 
     echo ""
     echo "Mutiny installed successfully (source build)!"
